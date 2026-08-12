@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Back card, tilted -->
+    <group
+        android:pivotX="54"
+        android:pivotY="60"
+        android:rotation="-16">
+        <path
+            android:fillColor="#E8C468"
+            android:pathData="M36,32 h36 a5,5 0 0 1 5,5 v42 a5,5 0 0 1 -5,5 h-36 a5,5 0 0 1 -5,-5 v-42 a5,5 0 0 1 5,-5 z" />
+    </group>
+
+    <!-- Front card -->
+    <path
+        android:fillColor="#FAF7F0"
+        android:pathData="M38,30 h34 a5,5 0 0 1 5,5 v42 a5,5 0 0 1 -5,5 h-34 a5,5 0 0 1 -5,-5 v-42 a5,5 0 0 1 5,-5 z" />
+
+    <!-- Spade -->
+    <path
+        android:fillColor="#12261F"
+        android:pathData="M55,38 C50,44 43,47 43,52 C43,56 46,59 49,59 C51,59 53,58 54,56 C54,60 52,63 50,65 L60,65 C58,63 56,60 56,56 C57,58 59,59 61,59 C64,59 67,56 67,52 C67,47 60,44 55,38 Z" />
+
+    <!-- Trump pip, the little accent -->
+    <path
+        android:fillColor="#C62828"
+        android:pathData="M55,70 L59,74 L55,78 L51,74 Z" />
+
+</vector>

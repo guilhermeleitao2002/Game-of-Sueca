@@ -63,3 +63,19 @@ number, for example `NUM_GAMES=100 ./run_simulation.sh`.
 #### Note
 
 The content present in the `results/` directory is the exact output behind the tables in `paper/report.pdf`. Re-running the script overwrites it, and since the simulations are not seeded the numbers will differ slightly from the ones reported in the paper.
+
+## Android app
+
+`android/` holds a Jetpack Compose app built on a Kotlin port of this simulator: a Sueca engine
+that recommends a card the way a chess engine recommends a move, with any of the six agents
+driving the recommendation (the Deck Predictor by default), and a camera that reads real cards
+so it can advise on a game being played with a physical deck.
+
+```bash
+cd android
+./gradlew :engine:test        # rules, agents and vision maths on the JVM, no SDK needed
+./gradlew :app:installDebug   # build and install onto a connected device
+```
+
+See [android/README.md](android/README.md) for the toolchain requirements, the mapping between
+the Python modules and their Kotlin counterparts, and how card recognition works.

@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Multi-agent simulator for Sueca (Portuguese trick-taking card game), built for the ASMA course. Two hard-coded teams — **Sporting** (players `Leitao`, `Fred`) and **Benfica** (`Pedro`, `Sebas`) — each play a single strategy for the whole game; the simulator pits strategy pairs against each other over N games and records win rates. `paper/` holds the ACM-format write-up (`report.tex` → `report.pdf`, built with `pdflatex` + `bibtex`); its result tables are transcribed from `results/`, so regenerating one means updating the other.
 
+`android/` is a second front end onto the same rules: a Kotlin port of the engine plus a Compose app (advisor, play-against-agents, card scanner, simulator). It is a *port*, not a binding — the Python is still the reference for the published numbers, and behaviour changes must be made in both or explicitly flagged. See [android/README.md](android/README.md) and the Android section below.
+
 ## Running
 
 No build, no package manager, no test suite, no linter. Plain scripts run directly.
@@ -49,6 +51,20 @@ Strategy values for `-s`/`-b`: `random`, `greedy`, `maxpointswon`, `maxroundswon
 `initial_points` is the sum of card values *dealt* to a team, accumulated in `Game.hand_cards`. The `converted_points_*` figures printed at the end are `score - initial_points`: how much a strategy over- or under-performed relative to the hand luck it was given. That, not raw win count, is the interesting metric across strategy pairings.
 
 Note that `results/*.txt` committed before August 2026 spell one key `average_points_per_game_sporing`; it is `..._sporting` now.
+
+## Android port (`android/`)
+
+Two Gradle modules: `:engine` (pure Kotlin/JVM — rules, agents, beliefs, search, suit outlines, card classifier) and `:app` (Compose UI, CameraX, ML Kit). `:engine` has no Android dependency on purpose, so `./gradlew :engine:test` runs the whole of the interesting logic — 64 tests — without an SDK or a device. Build with `./gradlew :app:assembleDebug`; needs JDK 17 and SDK 35.
+
+**Structural differences from the Python, both deliberate.** Strategies are stateless `Strategy` objects that a `Player` *holds* rather than subclasses a player *is*, which is what lets the app ask every agent about the same position and swap the advising agent mid game. And `PredictorStrategy` takes its candidate cards from a `HandOracle`: `PerfectInfoOracle` reads the real hands exactly like `get_player_possible_cards` does (used by the simulator, keeps `results/` comparable), `BeliefOracle` uses only belief support (used whenever a person is at the table, since nobody can peek there). `EngineConfig.SIMULATION` / `.FAIR` / `.ADVISOR` bundle those choices.
+
+**`Game` is a state machine, not a loop.** `currentPlayer` / `legalCards()` / `play(card)` / `playAgentTurn()`, with `playToCompletion()` recovering `Game.play_game`. UI code drives it one card at a time; `startFromKnownHand` sets up the advisor's one-known-hand case and `startFromHands` a fully known position.
+
+**Faithfulness is a feature.** The `current_round < 2` trump penalty, stable-sort ties going to the weakest card, and `SelfBeliefPolicy.LEGACY` (a player's own belief row keeps describing the hand it was *dealt*, because `Game.update_beliefs` skips the player that just played) are all reproduced. `TrickSearch` normalises the expected-utility sum by the total probability mass, which is a constant factor and so leaves the ranking identical while making the number mean expected trick points. If you change any of this, the Simulator screen stops agreeing with `results/`.
+
+**One source of truth for suit shapes.** `shapes/SuitShapes.kt` holds the four outlines as path commands; the app converts them to Compose `Path`s to draw cards, and `ShapeRasterizer` fills them into the binary masks `SuitClassifier` matches camera pips against. Changing an outline changes both, which is the point.
+
+**The camera reads rank and suit separately.** ML Kit text recognition for the rank glyph (`RankReader` rejects 8/9/10 rather than guessing, accepts R/D/V), classical CV for the pip below it (`PipFinder` thresholds and takes a connected component, `SuitClassifier` matches multi-scale templates). Nothing is trusted until `ScanAccumulator` has seen it several frames running.
 
 ## Known quirks
 

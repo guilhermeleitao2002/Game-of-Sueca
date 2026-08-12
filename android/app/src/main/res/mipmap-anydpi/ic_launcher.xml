@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pre API 26 launchers get the plain icon; API 26+ picks the adaptive one next door. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launcher_background" />
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

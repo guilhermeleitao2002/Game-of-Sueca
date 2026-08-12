@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      Everything visual is Compose. This exists so the window has the felt colour behind it
+      from the very first frame instead of flashing white.
+    -->
+    <style name="Theme.Sueca" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/felt</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+</resources>
