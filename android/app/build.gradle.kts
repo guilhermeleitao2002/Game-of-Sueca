@@ -1,8 +1,29 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose.compiler)
 }
+
+/**
+ * Release signing details, from `android/keystore.properties` or the environment.
+ *
+ * Neither the keystore nor the passwords are ever committed, and when they are missing the
+ * release build still runs — it just comes out unsigned, which is enough for CI and for anyone
+ * who has cloned the repository and only wants to check that it compiles.
+ */
+val keystoreProperties = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+}
+
+fun signingValue(key: String, environmentVariable: String): String? =
+    keystoreProperties.getProperty(key) ?: System.getenv(environmentVariable)
+
+val releaseKeystore: File? = signingValue("storeFile", "SUECA_KEYSTORE")
+    ?.let { path -> File(path).takeIf { it.isAbsolute } ?: rootProject.file(path) }
+    ?.takeIf { it.exists() }
 
 android {
     namespace = "pt.up.fe.asma.sueca"
@@ -17,6 +38,17 @@ android {
         resourceConfigurations += listOf("en")
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseKeystore != null) {
+                storeFile = releaseKeystore
+                storePassword = signingValue("storePassword", "SUECA_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "SUECA_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "SUECA_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -26,6 +58,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = if (releaseKeystore != null) signingConfigs.getByName("release") else null
         }
     }
 

@@ -1,10 +1,12 @@
 package pt.up.fe.asma.sueca.ui.theme
 
 import androidx.compose.foundation.background
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -107,8 +109,15 @@ val NumberStyle = TextStyle(
 /**
  * One committed look rather than a light theme and a dark one: the app is a card table, and a
  * card table is green. Everything else is tuned to sit on that felt.
+ *
+ * [LocalContentColor] is overridden on purpose. Material3 defaults it to black and only moves
+ * off that when a container's colour matches one of the scheme's roles — which the felt, being
+ * a gradient behind transparent scaffolds, never does. Left alone, every piece of text that does
+ * not name its own colour comes out black on dark green.
  */
 @Composable
 fun SuecaTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = SuecaColors, typography = SuecaTypography, content = content)
+    MaterialTheme(colorScheme = SuecaColors, typography = SuecaTypography) {
+        CompositionLocalProvider(LocalContentColor provides SuecaColors.onBackground, content = content)
+    }
 }

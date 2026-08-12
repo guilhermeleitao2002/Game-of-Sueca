@@ -41,9 +41,20 @@ object RankReader {
     /** Tokens that mean "this is not a Sueca card", so no rank should be guessed. */
     private val REJECTED = setOf("10", "1", "0", "8", "9", "O", "W", "M")
 
-    fun read(text: String): Reading? {
+    /**
+     * @param profile when the user has confirmed what this deck's recogniser output means, that
+     *   beats every general rule below — including the rejections, since the whole point of
+     *   training is to rescue a deck whose queen reads as "O".
+     */
+    fun read(text: String, profile: DeckProfile? = null): Reading? {
         val token = text.trim().uppercase().filter { it.isLetterOrDigit() || it == '/' || it == '?' }
-        if (token.isEmpty() || token in REJECTED) return null
+        if (token.isEmpty()) return null
+
+        profile?.rankFor(token)?.let { (rank, confirmations) ->
+            return Reading(rank, if (confirmations >= 2) 0.95 else 0.8)
+        }
+
+        if (token in REJECTED) return null
 
         EXACT[token]?.let { return Reading(it, 1.0) }
         CONFUSABLE[token]?.let { return Reading(it, 0.6) }

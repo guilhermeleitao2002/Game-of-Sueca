@@ -35,6 +35,8 @@ data class AppSettings(
     val fairPlay: Boolean = true,
     val showHints: Boolean = true,
     val agentDelayMillis: Int = 650,
+    /** Id of the trained deck the scanner should match against, or null for the built-in shapes. */
+    val deckProfileId: String? = null,
 ) {
 
     /** The rules the agents play under in a game against a person. */
@@ -55,6 +57,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 fairPlay = preferences[FAIR_PLAY] ?: true,
                 showHints = preferences[SHOW_HINTS] ?: true,
                 agentDelayMillis = preferences[AGENT_DELAY] ?: 650,
+                deckProfileId = preferences[DECK_PROFILE]?.takeIf { it.isNotEmpty() },
             )
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
@@ -71,6 +74,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setAgentDelay(millis: Int) = put(AGENT_DELAY, millis)
 
+    /** Pass null to go back to the built-in suit shapes. */
+    fun setDeckProfile(id: String?) = put(DECK_PROFILE, id.orEmpty())
+
     private fun <T> put(key: Preferences.Key<T>, value: T) {
         viewModelScope.launch { store.edit { it[key] = value } }
     }
@@ -85,6 +91,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val FAIR_PLAY = booleanPreferencesKey("fair_play")
         val SHOW_HINTS = booleanPreferencesKey("show_hints")
         val AGENT_DELAY = intPreferencesKey("agent_delay")
+        val DECK_PROFILE = stringPreferencesKey("deck_profile")
     }
 }
 

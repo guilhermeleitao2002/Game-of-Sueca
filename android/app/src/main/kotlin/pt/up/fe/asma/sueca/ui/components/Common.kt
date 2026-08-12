@@ -80,6 +80,9 @@ fun Panel(
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
         color = Color.Black.copy(alpha = 0.22f),
+        // Without this, Surface derives the content colour from a colour that matches no scheme
+        // role and lands on black.
+        contentColor = MaterialTheme.colorScheme.onSurface,
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
             color = if (highlighted) Gold.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.08f),

@@ -1,5 +1,6 @@
 package pt.up.fe.asma.sueca.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -9,15 +10,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import pt.up.fe.asma.sueca.data.AppSettings
+import pt.up.fe.asma.sueca.data.DeckProfileStore
 import pt.up.fe.asma.sueca.data.SettingsViewModel
 import pt.up.fe.asma.sueca.ui.components.AgentSelector
 import pt.up.fe.asma.sueca.ui.components.Panel
@@ -29,7 +36,11 @@ fun SettingsScreen(
     settings: AppSettings,
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
+    onTrainDeck: () -> Unit = {},
 ) {
+    val context = LocalContext.current
+    val decks = remember { DeckProfileStore(context).list() }
+
     ScreenScaffold(title = "Settings", onBack = onBack) { padding ->
         LazyColumn(
             Modifier
@@ -95,6 +106,38 @@ fun SettingsScreen(
                             valueRange = 100f..2_000f,
                             steps = 18,
                         )
+                    }
+                }
+            }
+
+            item {
+                Panel(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SectionLabel("Card scanner")
+                        Text(
+                            text = "Which trained deck the camera matches against. Without one it " +
+                                "uses the suit shapes the app ships with.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            FilterChip(
+                                selected = settings.deckProfileId == null,
+                                onClick = { viewModel.setDeckProfile(null) },
+                                label = { Text("Built-in shapes") },
+                            )
+                            decks.forEach { deck ->
+                                FilterChip(
+                                    selected = deck.id == settings.deckProfileId,
+                                    onClick = { viewModel.setDeckProfile(deck.id) },
+                                    label = { Text("${deck.name} · ${deck.pips}") },
+                                )
+                            }
+                        }
+                        TextButton(onClick = onTrainDeck) { Text("Train a deck") }
                     }
                 }
             }

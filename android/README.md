@@ -6,6 +6,9 @@ reads real cards off the table.
 
 Everything runs on the phone. No account, no network, no server.
 
+**[Download the latest APK](https://github.com/guilhermeleitao2002/Game-of-Sueca-Engine/releases/latest)**
+— Android 7.0 or newer. You will have to allow installing from outside the Play Store.
+
 ## What it does
 
 | Screen | What it is for |
@@ -13,6 +16,7 @@ Everything runs on the phone. No account, no network, no server.
 | **Table advisor** | You are playing with real cards. Scan or tap in your hand, record what everybody plays, and the engine tells you what to play next and why. |
 | **Play a game** | A full game against three agents, with the engine advising you as you go. |
 | **Scan cards** | The camera pipeline on its own: point it at cards and watch rank and suit come back. |
+| **Train your deck** | Show the camera a few of your own cards so it learns how *your* deck prints its pips and index. |
 | **Simulator** | Agent against agent for N games, reporting the same figures as `results/`. |
 | **The agents** | What each of the six strategies actually does. |
 
@@ -23,8 +27,25 @@ any point, including mid game.
 
 - **Android Studio** (Ladybug or newer) or a standalone Android SDK with platform 35 and
   build tools 35.
-- **JDK 17** (Android Studio bundles one; `JAVA_HOME` must not point at a JDK newer than 21,
-  which the Android Gradle Plugin does not accept).
+- **JDK 17 or 21.** Not newer. Gradle 8.9 and AGP 8.7 both refuse anything above 21, and the
+  way they refuse is unhelpful:
+
+  ```
+  FAILURE: Build failed with an exception.
+  * What went wrong:
+  25.0.3
+  ```
+
+  That bare version number means `JAVA_HOME` (or the default `java`) is a JDK Gradle cannot
+  run on. Point it at a 17 or a 21:
+
+  ```bash
+  sudo apt install openjdk-21-jdk                      # or download Temurin 21
+  export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64  # add to ~/.zshrc or ~/.bashrc
+  export PATH="$JAVA_HOME/bin:$PATH"
+  java -version                                        # must print 21.x or 17.x
+  ```
+
 - A device or emulator running **Android 7.0 (API 24)** or newer. The scanner needs a camera,
   everything else works without one.
 
@@ -42,9 +63,27 @@ From this `android/` directory:
 # Build and install onto the connected device or running emulator
 ./gradlew :app:installDebug
 
-# Minified release APK (unsigned) -> app/build/outputs/apk/release/
+# Minified release APK -> app/build/outputs/apk/release/
 ./gradlew :app:assembleRelease
 ```
+
+### Signing a release
+
+`assembleRelease` produces `app-release-unsigned.apk` until it is given a key, and an unsigned
+APK cannot be installed. Make one once:
+
+```bash
+keytool -genkeypair -v -keystore sueca-release.jks -alias sueca \
+        -keyalg RSA -keysize 2048 -validity 10000
+cp keystore.properties.example keystore.properties     # then fill in the passwords
+```
+
+Both the keystore and `keystore.properties` are gitignored, and the build falls back to an
+unsigned APK when they are absent, so a fresh clone still compiles. Signing details can also
+come from `SUECA_KEYSTORE`, `SUECA_KEYSTORE_PASSWORD`, `SUECA_KEY_ALIAS` and `SUECA_KEY_PASSWORD`
+in the environment, which is what CI would use.
+
+Keep the keystore. An update signed with a different key cannot replace an installed app.
 
 If Gradle cannot find the SDK, either open the project once in Android Studio (it writes
 `local.properties` for you), or do it by hand:
@@ -62,12 +101,34 @@ To install the APK on a phone over USB, with developer mode and USB debugging tu
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Installing over Wi-Fi
+
+Android 11 and newer can take an install with no cable at all, which is also the only practical
+route from WSL, where USB devices are not visible to Linux.
+
+On the phone: *Settings → About phone*, tap **Build number** seven times, then
+*Developer options → Wireless debugging → on → Pair device with pairing code*. It shows an
+address and a six digit code.
+
+On the computer, on the same Wi-Fi:
+
+```bash
+adb pair 192.168.1.42:37129     # the address from the *pairing* dialog, then type the code
+adb connect 192.168.1.42:41253  # the address from the Wireless debugging *main* screen
+adb devices                     # should list the phone as "device"
+./gradlew :app:installDebug
+```
+
+The two ports are different, and both change when the phone reboots or wireless debugging is
+toggled — `adb connect` again when that happens. Pairing by QR code and `adb mdns` discovery do
+not work from WSL, since its NAT hides mDNS; the explicit `adb pair <ip>:<port>` above does.
+
 ## Layout
 
 ```
 android/
   engine/     pure Kotlin, no Android at all: rules, agents, beliefs, search,
-              suit outlines and the classifier core. 64 unit tests.
+              suit outlines and the classifier core. 78 unit tests.
   app/        Jetpack Compose UI, CameraX, ML Kit.
 ```
 
@@ -149,10 +210,46 @@ templates rather than against hardcoded constants, so changing an outline keeps 
 honest by itself.
 
 No frame is trusted on its own: `ScanAccumulator` only offers a card after several consecutive
-sightings, and forgets it when the camera moves away.
+sightings, and forgets it when the camera moves away. The analysis stream runs at 720p rather
+than CameraX's 480p default, because at 480p a corner pip lands on about a dozen pixels, and
+the pip is looked for at three different depths below the rank, since decks disagree about how
+much white sits in between.
 
 All of that is pure Kotlin in `:engine`, so it is unit tested against synthetic frames rather
 than only on a device.
+
+### Training a deck
+
+Recognition that works on one deck and not another is not a bug to be tuned away: decks really
+do print different pips, in different inks, with different fonts on the index. So the app can be
+shown a deck instead of guessing at it.
+
+*Home → Train your deck*, or the mortarboard in the scanner's toolbar. Make a deck, hold a card
+up, tap which card it is. That single tap files two things:
+
+- the **pip**, normalised into the template box, under the suit you tapped, and
+- whatever the text recogniser made of the **index**, under the rank you tapped — which is how
+  "this deck's queen reads as O" stops being a failure and becomes a rule.
+
+Ink colour is learned along the way, so a deck whose red is closer to brown ends up with its own
+boundary between red and black rather than the shipped one.
+
+One card per suit already helps; the four suits between them are what `DeckProfile.isUsable`
+means. Up to eight examples per suit are kept, and when that fills up the new one replaces
+whichever stored example it most duplicates, so the set drifts towards covering the deck's
+variation rather than one lucky angle. The live reading on the training screen uses the profile
+as it grows, which is the quickest way to see whether it is working.
+
+Profiles live in `filesDir/deck-profiles/*.deck` as readable text, and *Settings → Card scanner*
+picks which one is active (or none, for the built-in shapes).
+
+**Why this and not reinforcement learning.** A correction carries the answer, not a reward, and
+there is no sequence of actions to assign credit across — so the problem is supervised, and the
+cheapest supervised method that works from four examples is nearest neighbour over prototypes.
+It needs no gradients, no training loop and no hyperparameters, it runs in microseconds on the
+phone, and one confirmed card changes behaviour immediately. An RL formulation would have to
+manufacture a reward out of the label it already has, and then need orders of magnitude more
+examples to recover what the label told it directly.
 
 ## Notes and limitations
 

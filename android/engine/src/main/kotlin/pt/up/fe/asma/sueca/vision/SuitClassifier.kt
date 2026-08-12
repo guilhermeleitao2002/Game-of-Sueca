@@ -7,7 +7,13 @@ import kotlin.math.abs
 
 data class SuitScore(val suit: Suit, val score: Double)
 
-data class SuitMatch(val suit: Suit, val confidence: Double, val ranked: List<SuitScore>) {
+data class SuitMatch(
+    val suit: Suit,
+    val confidence: Double,
+    val ranked: List<SuitScore>,
+    /** True when the winning score came from a card the user trained rather than a template. */
+    val fromProfile: Boolean = false,
+) {
 
     /** How far ahead of the runner up the winner is. Low margin means "do not trust this". */
     val margin: Double get() = if (ranked.size < 2) confidence else ranked[0].score - ranked[1].score
@@ -66,11 +72,35 @@ object SuitClassifier {
     }
 
     /**
+     * A pip the user trained is worth slightly more than the drawing shipped with the app, since
+     * it came off the very deck being looked at. Small enough that a clear template match still
+     * wins over a poor exemplar.
+     */
+    private const val PROFILE_WEIGHT = 1.06
+
+    /**
      * @param redInk true when the pip is red ink, false when black, null when the colour could
      *   not be decided. Knowing it halves the candidate set and roughly doubles accuracy.
+     * @param profile pips the user has confirmed for this deck, matched against alongside the
+     *   built-in templates.
      */
-    fun classify(mask: BooleanArray, width: Int, height: Int, redInk: Boolean?): SuitMatch? {
+    fun classify(
+        mask: BooleanArray,
+        width: Int,
+        height: Int,
+        redInk: Boolean?,
+        profile: DeckProfile? = null,
+    ): SuitMatch? {
         val normalised = normalise(mask, width, height) ?: return null
+        return classifyNormalised(normalised, redInk, profile)
+    }
+
+    /** Same, for a pip already cropped and stretched into the template box. */
+    fun classifyNormalised(
+        normalised: BooleanArray,
+        redInk: Boolean?,
+        profile: DeckProfile? = null,
+    ): SuitMatch? {
         val features = featuresOf(normalised, TEMPLATE_SIZE, TEMPLATE_SIZE)
 
         val candidates = when (redInk) {
@@ -79,18 +109,28 @@ object SuitClassifier {
             null -> Suit.entries
         }
 
+        var learnedWon = false
         val ranked = candidates.map { suit ->
-            val best = templates.getValue(suit).maxOf { template ->
-                val overlap = jaccard(normalised, template.mask)
-                val similarity = featureSimilarity(features, template.features)
-                OVERLAP_WEIGHT * overlap + FEATURE_WEIGHT * similarity
+            val builtIn = templates.getValue(suit).maxOf { template ->
+                similarity(normalised, features, template.mask, template.features)
             }
-            SuitScore(suit, best)
+            val learned = profile?.similarityTo(suit, normalised, features)?.times(PROFILE_WEIGHT)
+            if (learned != null && learned > builtIn) learnedWon = true
+            SuitScore(suit, maxOf(builtIn, learned ?: 0.0))
         }.sortedByDescending { it.score }
 
         val best = ranked.firstOrNull() ?: return null
-        return SuitMatch(best.suit, best.score, ranked)
+        return SuitMatch(best.suit, best.score.coerceAtMost(1.0), ranked, learnedWon)
     }
+
+    /** How alike two normalised masks are, on the same scale the templates are scored on. */
+    fun similarity(a: BooleanArray, b: BooleanArray): Double = similarity(
+        a, featuresOf(a, TEMPLATE_SIZE, TEMPLATE_SIZE),
+        b, featuresOf(b, TEMPLATE_SIZE, TEMPLATE_SIZE),
+    )
+
+    fun similarity(a: BooleanArray, aFeatures: DoubleArray, b: BooleanArray, bFeatures: DoubleArray): Double =
+        OVERLAP_WEIGHT * jaccard(a, b) + FEATURE_WEIGHT * featureSimilarity(aFeatures, bFeatures)
 
     /** Crops to the ink, then stretches it into the template box. */
     fun normalise(mask: BooleanArray, width: Int, height: Int): BooleanArray? {

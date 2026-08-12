@@ -54,7 +54,7 @@ Note that `results/*.txt` committed before August 2026 spell one key `average_po
 
 ## Android port (`android/`)
 
-Two Gradle modules: `:engine` (pure Kotlin/JVM — rules, agents, beliefs, search, suit outlines, card classifier) and `:app` (Compose UI, CameraX, ML Kit). `:engine` has no Android dependency on purpose, so `./gradlew :engine:test` runs the whole of the interesting logic — 64 tests — without an SDK or a device. Build with `./gradlew :app:assembleDebug`; needs JDK 17 and SDK 35.
+Two Gradle modules: `:engine` (pure Kotlin/JVM — rules, agents, beliefs, search, suit outlines, card classifier) and `:app` (Compose UI, CameraX, ML Kit). `:engine` has no Android dependency on purpose, so `./gradlew :engine:test` runs the whole of the interesting logic — 78 tests — without an SDK or a device. Build with `./gradlew :app:assembleDebug`; needs JDK 17 and SDK 35.
 
 **Structural differences from the Python, both deliberate.** Strategies are stateless `Strategy` objects that a `Player` *holds* rather than subclasses a player *is*, which is what lets the app ask every agent about the same position and swap the advising agent mid game. And `PredictorStrategy` takes its candidate cards from a `HandOracle`: `PerfectInfoOracle` reads the real hands exactly like `get_player_possible_cards` does (used by the simulator, keeps `results/` comparable), `BeliefOracle` uses only belief support (used whenever a person is at the table, since nobody can peek there). `EngineConfig.SIMULATION` / `.FAIR` / `.ADVISOR` bundle those choices.
 
@@ -65,6 +65,10 @@ Two Gradle modules: `:engine` (pure Kotlin/JVM — rules, agents, beliefs, searc
 **One source of truth for suit shapes.** `shapes/SuitShapes.kt` holds the four outlines as path commands; the app converts them to Compose `Path`s to draw cards, and `ShapeRasterizer` fills them into the binary masks `SuitClassifier` matches camera pips against. Changing an outline changes both, which is the point.
 
 **The camera reads rank and suit separately.** ML Kit text recognition for the rank glyph (`RankReader` rejects 8/9/10 rather than guessing, accepts R/D/V), classical CV for the pip below it (`PipFinder` thresholds and takes a connected component, `SuitClassifier` matches multi-scale templates). Nothing is trusted until `ScanAccumulator` has seen it several frames running.
+
+**Decks are learnable, and the learning is supervised, not RL.** A `DeckProfile` stores pip masks cut out of the user's own cards, a token→rank map for that deck's index font, and its ink colour statistics; `SuitClassifier`/`RankReader`/`PipFinder` all take one optionally and fall back to the built-in shapes without it. Every confirmation on the trainer screen is a labelled example, so nearest neighbour over prototypes is the right tool — one card per suit already shifts behaviour. Profiles serialise to a line-based text format (`DeckProfile.encode`) under `filesDir/deck-profiles/`.
+
+**Content colour is set explicitly in `SuecaTheme`.** Material3 defaults `LocalContentColor` to black and only leaves it when a container's colour matches a scheme role, which the transparent scaffolds over the felt gradient never do. Without the override every `Text` that does not name a colour renders black on dark green.
 
 ## Known quirks
 

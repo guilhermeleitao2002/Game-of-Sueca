@@ -9,3 +9,8 @@ android/local.properties
 android/.idea/
 *.apk
 
+# Signing material never goes in the repository
+android/keystore.properties
+*.jks
+*.keystore
+

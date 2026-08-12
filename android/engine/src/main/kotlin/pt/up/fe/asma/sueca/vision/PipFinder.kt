@@ -28,6 +28,10 @@ data class PipDetection(
     val red: Boolean?,
     val bounds: ImageRect,
     val inkPixels: Int,
+    /** The pip normalised into the template box, which is what a [DeckProfile] learns from. */
+    val mask: BooleanArray,
+    /** Mean redness of the ink, kept so a profile can learn where this deck's red sits. */
+    val redness: Double,
 )
 
 /**
@@ -50,7 +54,17 @@ object PipFinder {
     private const val MIN_INK_PIXELS = 12
     private const val MAX_INK_FRACTION = 0.80
 
-    fun find(pixels: IntArray, imageWidth: Int, imageHeight: Int, region: ImageRect): PipDetection? {
+    /** Default ink colour boundaries, used until a [DeckProfile] has learned this deck's own. */
+    private const val RED_INK = 30.0
+    private const val BLACK_INK = 12.0
+
+    fun find(
+        pixels: IntArray,
+        imageWidth: Int,
+        imageHeight: Int,
+        region: ImageRect,
+        profile: DeckProfile? = null,
+    ): PipDetection? {
         val box = region.clampTo(imageWidth, imageHeight)
         if (box.width < 5 || box.height < 5) return null
 
@@ -102,19 +116,24 @@ object PipFinder {
         }
 
         val meanRedness = rednessSum.toDouble() / component.pixels
+        val learned = profile?.rednessThreshold()
         val red = when {
-            meanRedness >= 30 -> true
-            meanRedness <= 12 -> false
-            else -> null
+            learned != null -> meanRedness >= learned
+            meanRedness >= RED_INK -> true
+            meanRedness <= BLACK_INK -> false
+            else -> null                                        // somewhere in between, do not guess
         }
 
-        val match = SuitClassifier.classify(mask, maskWidth, maskHeight, red) ?: return null
+        val normalised = SuitClassifier.normalise(mask, maskWidth, maskHeight) ?: return null
+        val match = SuitClassifier.classifyNormalised(normalised, red, profile) ?: return null
 
         return PipDetection(
             match = match,
             red = red,
             bounds = bounds.translate(box.left, box.top),
             inkPixels = component.pixels,
+            mask = normalised,
+            redness = meanRedness,
         )
     }
 

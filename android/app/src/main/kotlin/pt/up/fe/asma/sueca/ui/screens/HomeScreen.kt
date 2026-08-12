@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueryStats
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -74,6 +75,13 @@ fun HomeScreen(settings: AppSettings, onNavigate: (String) -> Unit) {
             title = "Scan cards",
             description = "Point the camera at a card and watch it get read, rank and suit.",
             icon = Icons.Default.PhotoCamera,
+        ),
+        Destination(
+            route = Routes.TRAIN_DECK,
+            title = "Train your deck",
+            description = "Reading your cards badly? Show it a few and it will learn how your " +
+                "deck prints its pips.",
+            icon = Icons.Default.School,
         ),
         Destination(
             route = Routes.SIMULATOR,

@@ -10,6 +10,7 @@ import pt.up.fe.asma.sueca.data.ScanResultBus
 import pt.up.fe.asma.sueca.data.SettingsViewModel
 import pt.up.fe.asma.sueca.ui.screens.AdvisorScreen
 import pt.up.fe.asma.sueca.ui.screens.AgentsScreen
+import pt.up.fe.asma.sueca.ui.screens.DeckTrainerScreen
 import pt.up.fe.asma.sueca.ui.screens.HomeScreen
 import pt.up.fe.asma.sueca.ui.screens.PlayScreen
 import pt.up.fe.asma.sueca.ui.screens.ScanScreen
@@ -21,6 +22,7 @@ object Routes {
     const val PLAY = "play"
     const val ADVISOR = "advisor"
     const val SCAN = "scan"
+    const val TRAIN_DECK = "train-deck"
     const val SIMULATOR = "simulator"
     const val AGENTS = "agents"
     const val SETTINGS = "settings"
@@ -57,11 +59,21 @@ fun SuecaApp(settingsViewModel: SettingsViewModel) {
 
         composable(Routes.SCAN) {
             ScanScreen(
+                settings = settings,
                 onBack = navController::popBackStack,
                 onUse = { cards ->
                     ScanResultBus.offer(cards)
                     navController.popBackStack()
                 },
+                onTrainDeck = { navController.navigate(Routes.TRAIN_DECK) },
+            )
+        }
+
+        composable(Routes.TRAIN_DECK) {
+            DeckTrainerScreen(
+                settings = settings,
+                onBack = navController::popBackStack,
+                onProfileSelected = settingsViewModel::setDeckProfile,
             )
         }
 
@@ -78,6 +90,7 @@ fun SuecaApp(settingsViewModel: SettingsViewModel) {
                 settings = settings,
                 viewModel = settingsViewModel,
                 onBack = navController::popBackStack,
+                onTrainDeck = { navController.navigate(Routes.TRAIN_DECK) },
             )
         }
     }
