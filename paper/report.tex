@@ -1,0 +1,456 @@
+\documentclass[sigconf]{acmart}
+\usepackage{enumitem} % for customizing lists
+\usepackage{booktabs} % For better-looking tables
+\usepackage{array}
+\usepackage{caption}
+\usepackage{float}    % for the [H] float placement used by the result tables
+
+% Set the overall caption layout of the tables
+\setlength{\floatsep}{0pt}
+\setlength{\textfloatsep}{0pt}
+\setlength{\intextsep}{0pt}
+\captionsetup[table]{skip=20pt}
+
+% Tighter column padding, so the result tables fit the column width
+\setlength{\tabcolsep}{4pt}
+
+\settopmatter{printacmref=false, printfolios=false, printccs=false} % Removes citation information below abstract
+
+\setcopyright{none} %% we don't want to show the ACM copyright
+% \copyrightyear{2018}
+% \acmYear{2018}
+%\acmDOI{}
+
+\citestyle{acmauthoryear}
+
+%% Add pagination
+\settopmatter{printfolios=true}
+
+\begin{document}
+
+\title{Playing \textit{Sueca} with Autonomous Agents}
+
+%% Author list
+\author{Frederico Silva}
+\affiliation{%
+  \institution{Instituto Superior Técnico}
+  \streetaddress{Av. Rovisco Pais, Nº 1}
+  \postcode{1049-001}
+  \city{Lisbon}
+  \country{Portugal}}
+\email{frederico.m.silva@tecnico.ulisboa.pt}
+
+\author{Pedro Mateus}
+\affiliation{%
+  \institution{Instituto Superior Técnico}
+  \streetaddress{Av. Rovisco Pais, Nº 1}
+  \postcode{1049-001}
+  \city{Lisbon}
+  \country{Portugal}}
+\email{pedro.r.mateus@tecnico.ulisboa.pt}
+
+\author{Guilherme Leitão}
+\affiliation{%
+  \institution{Instituto Superior Técnico}
+  \streetaddress{Av. Rovisco Pais, Nº 1}
+  \postcode{1049-001}
+  \city{Lisbon}
+  \country{Portugal}}
+\email{guilhermeleitao0202@tecnico.ulisboa.pt}
+
+%% Set location
+\acmConference[Instituto Superior Técnico]{}{Lisbon, Portugal}{2024}
+
+%% \renewcommand{\shortauthors}{}
+
+% \begin{acks}
+% To Robert, for the bagels and explaining CMYK and color spaces.
+% \end{acks}
+
+\begin{abstract}
+  \hspace*{0.7em} This project introduces a multi-agent artificial intelligence system specifically designed for playing \textit{Sueca}, a traditional card game relatively popular in Portugal. The game is played with a trimmed 40-card deck, and the primary objective is to work with a partner and accumulate points as a team.\\
+
+  Our research focuses on the development of multi-agent systems and their application to the game of \textit{Sueca}. Our main objective is to create a framework that simulates intelligent gameplay, where agents make use of several decision-making strategies. While our primary goal is to simulate agent-agent gameplay, we've also added agent-human interaction to allow for human players to participate in the game against the agents.\\
+
+  To achieve these goals, our technical approach is based on the development of 4 key constructs that effectively represent the game's domain. These constructs are: \textbf{Card}, \textbf{Player}, \textbf{Game}, and \textbf{Team}. The \textbf{Player} construct is the one that allows for the implementation of diverse strategies, leveraging the game state and opponent/partner moves to make informed and logical choices.\\
+
+  The contributions of this project mainly consist on the development of a practical implementation of a multi-agent system for playing the game of \textit{Sueca}. This implementation mostly demonstrates the interplay between intelligent agents in strategic card games (with a twist of some human interplay as well). Over 150000 simulated games we find that any agent that reasons about the state of the current round wins around twice as often as one that does not, while the differences between the informed strategies themselves are comparatively modest.\\
+
+  Finally, the project aims to shed light on the wide range of applications for multi-agent systems and competitive AI agents in recreational activities. It highlights the possibilities of integrating advanced AI technologies into leisurely pursuits, emphasizing the potential for enhanced gameplay experiences and new dimensions of strategic engagement.
+\end{abstract}
+
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+\section{Introduction}
+The objective of this project is to develop a multi-agent system with the aim of playing \textit{Sueca} intelligently and employing multiple decision-making  strategies, using information from the game-state and opponent/partner moves. After implementing this framework, we aim to facilitate a comparative analysis on different intelligent agent approaches and take conclusions regarding their effectiveness.\\
+
+\noindent This project proposes to serve as a basic framework of a practical implementation of a multi-agent system for playing \textit{Sueca}.
+
+\subsection{The rules of Sueca}
+Sueca is a card game that is popular in various countries, especially in Portugal and Brazil. The game is typically played with a standard deck of 40 cards, excluding the \textbf{eights}, \textbf{nines}, and \textbf{tens} (and \textbf{jokers}). Sueca is typically played by four individuals, playing in teams of two, but variations exist for different numbers of players, although these are not going to be considered in this project.\\
+
+\noindent The objective of Sueca is to accumulate points by winning individual rounds of play. A round consists of each player playing one card from their hand, and the player who plays the highest-ranked card of the led/trump suit wins the round and leads the next one. The led suit is simply the suit of the first card played in that round.\\
+
+\noindent At the beginning of the game, the dealer (who we can assume is one of the four players chosen at random) shuffles the deck and distributes 10 cards to each player, resulting in each player holding their entire hand for the round. Unlike similar games such as Bisca, for example, there is no stockpile, and the trump suit is determined by the last card dealt, which is shown to all players before being added to the dealer's hand.\\
+
+\noindent Gameplay progresses with players taking turns clockwise. The first player to play a card in each round is called the leader. Players must follow the led suit whenever they hold a card of that suit; only a player with no such card is free to play anything else. The round is won by the player who manages one of the following plays:
+\begin{itemize}
+    \item The highest-ranked card of the trump suit, if any were played;
+    \item The highest-ranked card of the led suit.
+\end{itemize}
+
+\noindent The winner of the round collects the played cards and places them face-down in front of them.\\
+
+\noindent The game continues with players leading rounds and trying to win as many as possible. Once all cards have been played, and therefore all 10 rounds have been played out, the game ends. The accumulated points from the won rounds are tallied, considering the values assigned to each card:
+\begin{itemize}
+    \item \textbf{Aces} - 11 points;
+    \item \textbf{Sevens} - 10 points;
+    \item \textbf{Kings} - 4 points;
+    \item \textbf{Jacks} - 3 points;
+    \item \textbf{Queens} - 2 points;
+    \item \textbf{Sixes/Fives/Fours/Threes/Twos} - 0 points.
+\end{itemize}
+
+\noindent Keep in mind that the ranking of cards is equal to their values as ordered above, with the cases of the \textbf{Sixes}-\textbf{Twos} being assigned a rank of most to least in the order presented in relation to each other. A useful consequence of this, which some of our agents rely on, is that ranking and value never disagree: the higher-ranked of two cards is never worth fewer points than the other.\\
+
+\noindent Since the 40 cards are worth 120 points in total, the two teams always split exactly 120 points between them, and a team needs 61 points to win. At the end of the game, the team with the highest accumulated points is declared the winner. If both teams finish on 60 points, the game is a draw.\\
+
+\noindent Sueca is a game that combines elements of strategy, card valuation, and predicting opponents' moves. It requires careful consideration of the cards played, the remaining cards in hand, and the overall game dynamics. The ability to assess the strengths and weaknesses of the opponent and partner's hands and to strategically play cards to maximize point accumulation is crucial for success in this game.
+
+\subsection{Related Work}
+We can find a variety of research on the development of intelligent agents for playing card games. What caught our eye, however, was the work of \cite{emys2015}, who developed a multi-agent system for playing the card game \textit{Sueca}. From here we took inspiration for the development of our agents and the overall multi-agent system.\\
+
+\noindent The development of intelligent agents for playing card games is a well-established field in artificial intelligence. For the conceptual (i.e non-code related) development of our agents we take inspiration from the work of \cite{basis2023}, who developed a multi-agent system for playing the card game \textit{Bisca}. The agents in their system were also designed to play the game with different strategies, such as randomly selecting cards, applying the greedy strategy, minimizing point loss, etc.\\
+
+\section{Approach}
+In this study, we adopt an approach that centers around the design
+and implementation of the multi-agent platform specifically tailored
+for the game of \textit{Sueca}.
+
+\subsection{Environment}
+The environment is dynamic, in such a way that each agent's decisions impact all the other agents' decisions and outcomes. We can divide the environment and provide a definition as follows:
+\begin{itemize}
+    \item \textbf{Game} - The game of \textit{Sueca}, is chosen as the target environment, in a format which always entails two teams, each with two players.
+    \item \textbf{Rules} - The rules of \textit{Sueca}, including card rankings, round mechanics and point calculations, will be implemented to create an accurate representation of the game environment.
+\end{itemize}
+
+\subsection{Agents}
+In the environment there will be Rational Agents. For some of these, their actions will be guided by a utility function, defined according to the selected strategy.
+The desired outcome for the agents is to win the game by accumulating more points than the opponent team. The utility functions used by each agent will prioritize achieving this specific outcome, through the use of different strategies.\\
+
+\noindent For simplicity's sake, we've aggregated the strategies by team, meaning that each team's members will share the same strategy and can't diverge from one another. This way we'll be able to evaluate these strategies team-wise. It is noteworthy to mention that the agents are implemented to follow the rules of the game, which means that they will not be able to cheat or break the rules in any way.\\
+
+\noindent We can define this system as the following \textit{Normal Form Game} ($N$, $A$, $u$):
+
+\begin{itemize}
+  \item \textbf{Players}: The set $N$ consists of the \textit{4} players involved in the game, each indexed by $i$. In the case of \textit{Sueca}, the intelligent agents participating in the gameplay are the players.\\
+
+  \item \textbf{Action Sets}: The set $A$ is defined as the Cartesian product of $A_1 \times \cdots \times A_n$, where $A_i$ represents the finite set of actions available to agent $i$. In the context of \textit{Sueca}, each player's set of actions correspond to the cards in their hand that they can legally play in a certain round. On a similar note, an action profile refers to a specific combination of actions taken by all players. It is denoted by the vector $\mathbf{a} = (a_1, \ldots, a_n) \in A$. In \textit{Sueca}, an action profile represents the cards played by each player in a given round.\\
+
+  \item \textbf{Utility Function}: The utility function $\mathbf{u} = (u_1, \ldots, u_n)$ assigns a real-value utility (in this case) to each player in the game. Here, $u_i: A \rightarrow \mathbb{R}$ represents the utility function for player $i$, mapping the action profiles to real numbers. In \textit{Sueca}, the utility function determines the scores obtained by each player based on the outcome of the round (e.g., winning or losing the round).
+\end{itemize}
+
+\noindent The following sections aim to summarize the different agent strategies implemented, ordered by complexity.
+
+{\centering\fontsize{11}{24}\selectfont\textbf{Random Agent}\par}
+\vspace{2mm} % Adding some vertical space for separation
+This is the simplest agent, as it randomly selects a card to play from its hand, among the ones it is allowed to play. This agent serves as a baseline to evaluate the performance of more sophisticated strategies.
+
+{\centering\fontsize{11}{24}\selectfont\textbf{Greedy Agent}\par}
+\vspace{2mm} % Adding some vertical space for separation
+The Greedy agent uses a straight forward strategy of always playing the highest ranked card available, it doesn't consider the cards that have previously been played in the round, nor which team is winning it.
+
+{\centering\fontsize{11}{24}\selectfont\textbf{MaximizeRoundsWon Agent}\par}
+\vspace{2mm} % Adding some vertical space for separation
+The MaximizeRoundsWon Agent aims to win as many rounds as possible. If it's the first turn, the agent plays the highest ranked card within its hand. Subsequently, the following strategic approach is adopted: if the agent's team is already winning the round, it plays its lowest card, since the round is going to be won regardless; if its team is behind, it plays the lowest card that can actually win the round, preserving better cards for future rounds. Note that "can actually win" has to account for the trump suit, as a card of the led suit never beats a round that an opponent has already cut with a trump. This strategy aims to maintain a strong hand towards the game's end, ensuring that the agent can win crucial rounds later in the game when it might matter most.
+
+{\centering\fontsize{11}{24}\selectfont\textbf{MaximizePointsWon Agent}\par}
+\vspace{2mm} % Adding some vertical space for separation
+The MaximizePointsWon Agent is designed to maximize the points won in each round. If it's the first turn, the agent plays the highest card within its hand. For subsequent turns, the agent follows this strategy: if the agent's team is already winning the round, it plays its highest card, piling as many points as possible onto a round it expects to collect; otherwise, it plays the highest card that can actually win the round, if such a card exists, and its lowest one if not. Because ranking and value never disagree in \textit{Sueca}, playing the highest ranked card is also the way to commit the most points to the round. This strategy focuses on securing the highest possible points from each round.
+
+{\centering\fontsize{11}{24}\selectfont\textbf{Cooperative Agent}\par}
+\vspace{2mm} % Adding some vertical space for separation
+The Cooperative agent maintains a belief of its partner's cards and updates it each time a card is played. If it's the first player of the round it tries to select a suit that maximizes the possibility of earning points by evaluating its partner's cards and choosing a card from the suit that will lead to earning the biggest amount of points; if it believes its partner to be void in a suit it can lead while still holding trumps, it leads that suit so that the partner can cut. In case it's the second player of the round, it will check if the team will be able to win the round, based on its cards, the cards that have been played so far and the partner's belief, and play according to this information. In other cases it behaves just like the \textbf{MaximizePointsWon} agent, except that it looks at whether its \textit{partner} is winning the round rather than either opponent.
+
+{\centering\fontsize{11}{24}\selectfont\textbf{DeckPredictor Agent}\par}
+\vspace{2mm} % Adding some vertical space for separation
+This is the most complex agent, as it uses a probabilistic approach similar to the \textbf{Cooperative Agent}'s to keep track of the likelihood of each card being in \textbf{every player}'s hand (friend or foe). For every (playable) card in its hand, it simulates every possible round outcome and returns the utility value for that card. This value is calculated by summing the probability of each possible outcome multiplied by the points that would be won/lost in that outcome (adding the points won by the agent's team or subtracting the points won by the opponent team). The agent then plays the card with the highest utility value.
+
+Logically, we can easily foresee an immediate issue, which is that in the first rounds, the agent will immediately play the trump cards, as they are the most likely to win. This is a problem because the agent will not have any trump cards left for the later rounds, where they are more likely to be needed. To mitigate this, we've added a simple heuristic that, for the first two rounds of the game, decreases the trump cards' utility value by a considerable amount, so that the agent will avoid playing them.
+
+\subsection{System Architecture}
+
+The system architecture is divided into four main abstractions:\\
+
+\begin{itemize}
+  \item \textbf{Card} - Represents a card in the game of \textit{Sueca}. Each card is defined by a $suit$ - or 'naipe' in portuguese - and a $rank$, and can be compared to other cards (via an \textit{order} value). Each card also has a $value$ assigned to it by the game rules, and knows how to decide whether it would beat the card currently winning a round, given the trump suit.\\
+
+  \item \textbf{Player} - Represents a generic player in the game of \textit{Sueca}. Each player has a $name$, a $hand$ of cards, and a $team$ that they belong to. This class also includes basic methods for facilitating the player's actions, and it is where the common part of a turn lives: every strategy only has to choose which card to play, while playing it is handled once, in the same place, for all of them. From this abstraction we can directly derive the simpler agents, such as the \textbf{RandomPlayer}, the \textbf{GreedyPlayer}, the \textbf{MaximizePointsWonPlayer} and the \textbf{MaximizeRoundsWonPlayer}, that will implement the respective strategies.\\
+
+  Furthermore, there is one more abstraction that derives from the \textit{Player} class, which is the $BeliefPlayer$. This class is used to represent the \textbf{CooperativePlayer} and \textbf{PredictorPlayer}, which maintains a belief of the other players' cards and updates it each time a card is played. This belief is then used to make more complex and informed decisions.\\
+
+  \item \textbf{Team} - Represents a team in the game of \textit{Sueca}. Each team has two $players$, can accumulate points won in each round to form a $score$ and also maintains information regarding the $initial points$ its players had at the beginning of the game for further evaluation purposes. This class also includes methods for facilitating the posterior gathering of game related information for evaluation.\\
+
+  \item \textbf{Game} - Represents a game of \textit{Sueca}. It is responsible for handling game logic, like initializing a deck, registering players, managing turns, determining winners and updating the game state. It features a game-loop, which iterates through rounds and player-specific turns. It has a $trump$ card, two specific $teams$, an $order$ $of$ $players$ and certain $game$ $information$ associated with it. This class also includes methods for facilitating the game's progression such as round winning logic.\\
+  In essence, the game proceeds as follows:\\
+
+  \begin{enumerate}[label=\arabic*]
+    \item The game initializes by shuffling the deck and dealing cards to each player, choosing the trump card as the last card dealt and determining the player order just as if the players were sat around a table;
+    \item The game proceeds with each player taking turns to play a card from their hand, with the first player being the leader of the round;
+    \item The game determines the winner of the round and updates the game state accordingly;
+    \item It then rotates the player order and repeats the process until all cards have been played;
+    \item Finally, the game calculates the points won by each team and updates the game state accordingly.
+  \end{enumerate}
+
+\end{itemize}
+
+\subsection{Human Interaction}
+
+The platform also supports an actual human player. The user is able to interact with the game through the command line interface, and can play against the other agents. They are able to play cards from their hand, and the game will proceed as usual. Before each of their turns the engine shows the hand and suggests the card that the corresponding strategy would have played, which makes this mode useful for observing the agents' reasoning as well as for playing against them. Inputs are validated, so a card that is not in the hand, or one that would break the obligation to follow the led suit, is rejected and asked again rather than accepted.\\
+This feature is not considered in the comparative analysis, and is only used as more of a curiosity and a way to observe the agents in action in real-time.
+
+\noindent This logic was inserted directly in the \textit{Game} class, where the round-loop was modified to check if the current player is a $human$ player. If so, the game will wait for the user to input a card, and then proceed as usual. This way, the player can play against the other agents, and the game will proceed as if the human player was just another agent.
+
+\section{Empirical Evaluation}
+
+In order to assess the performance of the multi-agent system at playing the game of \textit{Sueca}, we need to conduct an evaluation process. Through this, we aim to validate the project's objectives by measuring key metrics related to gameplay quality and agent decision-making.\\
+With this in mind, we will use the following metrics:\\
+
+%% enumerate environment but with bold numbers
+\begin{enumerate}[label=\textbf{\arabic*}]
+  \item \textbf{W/R} - The win-rate ratio of each strategy, calculated as the number of games won by that strategy's team divided by the total number of games played (remember that the strategies are employed team-wise). Drawn games count towards the total but towards neither team's wins, which is why the two win-rates of a pairing and its draw rate add up to $100\%$. The higher the win-rate, the better that strategy is for playing the game;\\
+
+  \item \textbf{Avg. P/G} - The average number of points accumulated by each strategy's team per game. This metric will serve to validate the $Win-rate$, in the sense that a strategy that accumulates more points per game should also win more games. Also, even if a strategy doesn't win a game, it can still be considered semi-successful if it accumulates a high number of points. Since the two teams always split 120 points, an average of $60$ is exactly the break-even value;\\
+
+  \item \textbf{Points conv.} - The difference between the final points accumulated by each team and the initial points they had at the beginning of the game. For example, if a team starts with a total of 40 points and ends with a total of 90 points, it had a $points$ $conversion$ of +50. A strategy that can convert a high percentage of the initial points into final points is considered effective;\\
+\end{enumerate}
+
+\noindent Measuring these metrics allows us to provide valuable insights into the capabilities and effectiveness of the multi-agent system in playing \textit{Sueca}, as well as the performance of the individual strategies. The results of the evaluation process will be used to draw further conclusions regarding the system's performance and the effectiveness of the different strategies employed.
+
+\subsection{Research Questions}
+\label{sec:rq}
+
+In an effort to guide the empirical evaluation of the multi-agent system when it comes to playing \textit{Sueca}, the following questions have been set as goals:\\
+
+\begin{enumerate}[label=\textbf{\arabic*}]
+  \item \textbf{How effective are the agents at winning the game?} This question aims to evaluate the ultimate goal of each agent, which is to win the game by accumulating more points than the opponent team;\\
+
+  \item \textbf{How predominant is each agent's game?} This question aims to evaluate the performance of each agent in terms of the average number of points accumulated per game. This metric will provide insights into the efficiency of each agent in accumulating points;\\
+
+  \item \textbf{How well do the agents do, given the points they begin with?} This question aims to evaluate the effectiveness of each agent in converting the initial points they have at the beginning of the game into final points. This way we can see the agents that can better leverage the initial points they have to win the game.\\
+\end{enumerate}
+
+\subsection{Data Collection}
+
+In order to gather necessary data for the empirical analysis, a series of simulations were conducted using a simulation framework we developed for the multi-agent system. However, it is difficult to ensure consistency given the stochastic nature of the game of \textit{Sueca} (as well as any game of chance), as well as the stochastic nature of some of the strategies (namely the $RandomAgent$).\\
+
+\noindent For all combinations of agent behaviours, a total of \textbf{10000} games were simulated in order to achieve a sufficient level of statistical confidence and accuracy regarding agent behavior. With six strategies this amounts to $15$ pairings and $150000$ games in total. At this sample size the standard error of a win-rate near $50\%$ is roughly $0.5$ percentage points, so differences of about one percentage point or more can be read as real, while smaller ones should not be over-interpreted.\\
+
+\noindent It is important to note that the simulation framework does not take Human players into account.
+
+\subsection{Data Analysis}
+
+In this subsection, we analyze the results obtained from running simulations with different agent combinations. To evaluate performance of each player type, we consider several metrics explained above. These metrics provide insights into the effectiveness and efficiency of the different player types in the game.\\
+
+\noindent To obtain these metrics, we conducted a large number of simulations, as mentioned in \textbf{Data Collection}. In each simulation, both players of a team were assigned the same agent type, and the two teams were assigned a different one each, so that every pairing of strategies met head to head. After each simulation, we recorded the required metrics.\\
+
+\noindent Following are the results of the comparative analysis on the different intelligent agent approaches. Each table reports the performance of a single agent type against each of the other five, and closes with the average of that agent across all of its opponents. Tables \ref{tab:random} and \ref{tab:greedy} cover the two baseline agents, Tables \ref{tab:maxroundswon} and \ref{tab:maxpointswon} the two round-aware ones, and Tables \ref{tab:cooperative} and \ref{tab:predictor} the two belief-based ones:\\
+
+% Random Agent
+\begin{table}[H]
+  \fontsize{11}{13}\selectfont % Smaller font size for the table
+  \begin{tabular}{@{}p{2.9cm}p{1cm}p{1cm}p{1.2cm}p{1.2cm}@{}}
+    \toprule
+    Agent Type & \textbf{W/R \%} & \textbf{Avg. P/G} & \textbf{Points conv.} & \textbf{Draws /10000}\\
+    \midrule
+    \textbf{Greedy} & 40.4 & 55.1 & -5.2 & 170\\
+    \textbf{MaxRoundsWon} & 31.8 & 48.7 & -11.2 & 153\\
+    \textbf{MaxPointsWon} & 27.5 & 47.7 & -12.4 & 166\\
+    \textbf{Cooperative} & 27.1 & 47.5 & -12.5 & 152\\
+    \textbf{Predictor} & 24.8 & 45.6 & -14.3 & 126\\
+    \midrule
+    \textit{Metric Average} & \textit{30.3} & \textit{48.9} & \textit{-11.1} & \textit{153.4}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{2mm} % Adding some vertical space for separation
+  \caption{Random Agent related performance}
+  \label{tab:random}
+\end{table}
+
+% Greedy Agent
+\begin{table}[H]
+  \fontsize{11}{13}\selectfont % Smaller font size for the table
+  \begin{tabular}{@{}p{2.9cm}p{1cm}p{1cm}p{1.2cm}p{1.2cm}@{}}
+    \toprule
+    Agent Type & \textbf{W/R \%} & \textbf{Avg. P/G} & \textbf{Points conv.} & \textbf{Draws /10000}\\
+    \midrule
+    \textbf{Random} & 57.9 & 64.9 & +5.2 & 170\\
+    \textbf{MaxRoundsWon} & 28.5 & 46.4 & -13.6 & 136\\
+    \textbf{MaxPointsWon} & 26.7 & 45.9 & -14.1 & 170\\
+    \textbf{Cooperative} & 27.5 & 44.9 & -15.3 & 144\\
+    \textbf{Predictor} & 23.0 & 42.5 & -17.4 & 145\\
+    \midrule
+    \textit{Metric Average} & \textit{32.7} & \textit{48.9} & \textit{-11.1} & \textit{153.0}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{2mm} % Adding some vertical space for separation
+  \caption{Greedy Agent related performance}
+  \label{tab:greedy}
+\end{table}
+
+% MaximizeRoundsWon Agent
+\begin{table}[H]
+  \fontsize{11}{13}\selectfont % Smaller font size for the table
+  \begin{tabular}{@{}p{2.9cm}p{1cm}p{1cm}p{1.2cm}p{1.2cm}@{}}
+    \toprule
+    Agent Type & \textbf{W/R \%} & \textbf{Avg. P/G} & \textbf{Points conv.} & \textbf{Draws /10000}\\
+    \midrule
+    \textbf{Random} & 66.7 & 71.3 & +11.2 & 153\\
+    \textbf{Greedy} & 70.1 & 73.6 & +13.6 & 136\\
+    \textbf{MaxPointsWon} & 47.0 & 59.1 & -1.0 & 224\\
+    \textbf{Cooperative} & 45.1 & 58.2 & -1.9 & 176\\
+    \textbf{Predictor} & 43.8 & 57.7 & -2.3 & 186\\
+    \midrule
+    \textit{Metric Average} & \textit{54.5} & \textit{64.0} & \textit{+3.9} & \textit{175.0}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{2mm} % Adding some vertical space for separation
+  \caption{MaximizeRoundsWon Agent related performance}
+  \label{tab:maxroundswon}
+\end{table}
+
+% MaximizePointsWon Agent
+\begin{table}[H]
+  \fontsize{11}{13}\selectfont % Smaller font size for the table
+  \begin{tabular}{@{}p{2.9cm}p{1cm}p{1cm}p{1.2cm}p{1.2cm}@{}}
+    \toprule
+    Agent Type & \textbf{W/R \%} & \textbf{Avg. P/G} & \textbf{Points conv.} & \textbf{Draws /10000}\\
+    \midrule
+    \textbf{Random} & 70.9 & 72.3 & +12.4 & 166\\
+    \textbf{Greedy} & 71.6 & 74.1 & +14.1 & 170\\
+    \textbf{MaxRoundsWon} & 50.8 & 60.9 & +1.0 & 224\\
+    \textbf{Cooperative} & 46.6 & 58.9 & -1.1 & 197\\
+    \textbf{Predictor} & 43.7 & 57.8 & -1.9 & 180\\
+    \midrule
+    \textit{Metric Average} & \textit{56.7} & \textit{64.8} & \textit{+4.9} & \textit{187.4}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{2mm} % Adding some vertical space for separation
+  \caption{MaximizePointsWon Agent related performance}
+  \label{tab:maxpointswon}
+\end{table}
+
+% Cooperative Agent
+\begin{table}[H]
+  \fontsize{11}{13}\selectfont % Smaller font size for the table
+  \begin{tabular}{@{}p{2.9cm}p{1cm}p{1cm}p{1.2cm}p{1.2cm}@{}}
+    \toprule
+    Agent Type & \textbf{W/R \%} & \textbf{Avg. P/G} & \textbf{Points conv.} & \textbf{Draws /10000}\\
+    \midrule
+    \textbf{Random} & 71.3 & 72.5 & +12.5 & 152\\
+    \textbf{Greedy} & 71.1 & 75.1 & +15.3 & 144\\
+    \textbf{MaxRoundsWon} & 53.1 & 61.8 & +1.9 & 176\\
+    \textbf{MaxPointsWon} & 51.4 & 61.1 & +1.1 & 197\\
+    \textbf{Predictor} & 46.4 & 58.6 & -1.3 & 212\\
+    \midrule
+    \textit{Metric Average} & \textit{58.7} & \textit{65.8} & \textit{+5.9} & \textit{176.2}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{2mm} % Adding some vertical space for separation
+  \caption{Cooperative Agent related performance}
+  \label{tab:cooperative}
+\end{table}
+
+% DeckPredictor Agent
+\begin{table}[H]
+  \fontsize{11}{13}\selectfont % Smaller font size for the table
+  \begin{tabular}{@{}p{2.9cm}p{1cm}p{1cm}p{1.2cm}p{1.2cm}@{}}
+    \toprule
+    Agent Type & \textbf{W/R \%} & \textbf{Avg. P/G} & \textbf{Points conv.} & \textbf{Draws /10000}\\
+    \midrule
+    \textbf{Random} & 73.9 & 74.4 & +14.3 & 126\\
+    \textbf{Greedy} & 75.6 & 77.5 & +17.4 & 145\\
+    \textbf{MaxRoundsWon} & 54.4 & 62.3 & +2.3 & 186\\
+    \textbf{MaxPointsWon} & 54.5 & 62.2 & +1.9 & 180\\
+    \textbf{Cooperative} & 51.5 & 61.4 & +1.3 & 212\\
+    \midrule
+    \textit{Metric Average} & \textit{62.0} & \textit{67.5} & \textit{+7.4} & \textit{169.8}\\
+    \bottomrule
+  \end{tabular}
+  \vspace{2mm} % Adding some vertical space for separation
+  \caption{DeckPredictor Agent related performance}
+  \label{tab:predictor}
+\end{table}
+
+\vspace{-10mm} % Adding some vertical space for separation
+
+\subsection{Discussion}
+
+The empirical evaluation of the multi-agent platform provided valuable insights into its effectiveness and performance. In this subsection, we aim to discuss the findings of our evaluation, in the context of the research questions proposed in section \ref{sec:rq}:
+
+{\centering\fontsize{9}{24}\selectfont\textbf{How effective are the agents at winning the game?}\par}
+\vspace{2mm} % Adding some vertical space for separation
+
+\noindent As we can see from the average win-rate percentages, the agents that performed the best were the \textbf{DeckPredictor} and the \textbf{Cooperative} agents, with win-rates of $62.0\%$ and $58.7\%$ respectively, winning the majority of the games they played. These strategies can handle better the information available at each round, resulting in a stronger decision-making process.\\
+\noindent The \textbf{MaximizePointsWon} and \textbf{MaximizeRoundsWon} agents also performed well, with win-rates of $56.7\%$ and $54.5\%$ respectively, comfortably above the $50\%$ mark. The \textbf{Greedy} agent had a win-rate of $32.7\%$, while the \textbf{Random} agent had a win-rate of $30.3\%$. These last two were the ones that performed the poorest, which was expected, as they are the simplest agents, that play a card regardless the cards that have already been played, resulting in non-optimal choices.\\
+
+\noindent What stands out is where the distance actually lies. The four agents that reason about the current round are separated by only $7.5$ percentage points, whereas the gap between the weakest of them and the strongest of the two naive agents is close to $22$. In other words, taking the state of the round into account at all is worth far more than the particular way in which it is taken into account.\\
+
+\noindent The obtained results also highlight that a well-structured decision-making process is key for winning in \textit{Sueca}, as agents that use more information clearly overpower the others.\\
+
+%\noindent Looking at the edges of the spectrum, the \textbf{Random} agent lost on average against every other agent, while the \textbf{DeckPredictor} agent won on average against every other agent, making it the most effective agent at winning the game.\\
+
+
+{\centering\fontsize{9}{24}\selectfont\textbf{How predominant is each agent's game?}\par}
+\vspace{2mm} % Adding some vertical space for separation
+
+\noindent The agents that accumulated the most points per game were the \textbf{DeckPredictor} and the \textbf{Cooperative} agents, with averages of $67.5$ and $65.8$ points per game.\\
+The \textbf{MaximizePointsWon} and \textbf{MaximizeRoundsWon} agents also performed well, with averages of $64.8$ and $64.0$ points per game respectively.\\
+The \textbf{Random} and \textbf{Greedy} agents both had an average of $48.9$ points per game.\\
+
+\noindent This is consistent with the previous results, as the agents that accumulated the most points per game were also the ones that won the most games. Interestingly, the agents with the lowest points per game ($Random$ and $Greedy$) lost by more points per game ($11.1$ points below the break-even value of $60$) than the best agent ($DeckPredictor$) won by ($7.5$ points above it). The reason is that the naive agents are punished hardest by the strong ones, and there are four strong agents feeding on them but only one $DeckPredictor$.\\
+
+\noindent The tie between $Random$ and $Greedy$ on this metric deserves a closer look, because their win-rates are not tied. Against every one of the four informed agents, the $Greedy$ agent scores \textit{fewer} points than the $Random$ agent does ($46.4$, $45.9$, $44.9$ and $42.5$ against $48.7$, $47.7$, $47.5$ and $45.6$ respectively): systematically leading its highest card hands points to an opponent that knows when to take them. Its overall average is only rescued by the one pairing it dominates, against $Random$ itself, where it takes $64.9$ points per game. Playing greedily is therefore not a mild improvement over playing randomly, but a strategy that is better only against opposition that cannot punish it.\\
+
+{\centering\fontsize{9}{24}\selectfont\textbf{How well do the agents do, given the points they begin with?}\par}
+\vspace{2mm} % Adding some vertical space for separation
+
+\noindent To answer this question, we need to look at the points conversion metric. The agents that converted the most points were the \textbf{DeckPredictor} and the \textbf{Cooperative} agents, with averages of $+7.4$ and $+5.9$ points respectively.\\
+The \textbf{MaximizePointsWon} and \textbf{MaximizeRoundsWon} agents also performed reasonably well, with averages of $+4.9$ and $+3.9$ points each.\\
+The \textbf{Greedy} and the \textbf{Random} agents, however, both had an average of $-11.1$ points, losing points.\\
+
+\noindent Again, we piggyback on the previous results, as the agents that converted the most points were also the ones that accumulated the most points per game. The \textbf{Random} and \textbf{Greedy} agents were the ones that converted the least amount of points, ending up losing rather than winning points, as one would expect from the lowest winning-rate agents. Conversely, the \textbf{DeckPredictor} agent converted the most points, making it the most effective agent at converting the initial points into final points.\\
+
+\noindent By analyzing the collected data we can conclude that the most intelligent agents implemented (\textbf{DeckPredictor} and \textbf{Cooperative}) rely less on the hand they get, as they are able to take more points from the opponent team.\\
+
+\noindent It's amusing (and logical) to note that the points converted can actually be calculated directly from the average points per game (and vice-versa) by simply subtracting $60$ from the $avg$ $P/G$. This is because, as we converge to infinite games, the points a team begins with will eventually converge to $60$, i.e., every player should begin with roughly the same number of points as the other players and thus the converted points will match the difference between the $average$ $points$ $per$ $game$ and that value. The two columns agree to within $0.1$ points for every single agent in our tables, which is a good sign that $10000$ games per pairing were enough for the deal to even out.
+
+{\centering\fontsize{9}{24}\selectfont\textbf{Threats to validity}\par}
+\vspace{2mm} % Adding some vertical space for separation
+
+\noindent Three caveats are worth stating. First, when the \textbf{DeckPredictor} enumerates the answers its opponents might give, it draws those candidate cards from the hands they actually hold and weighs them by its beliefs, rather than sampling from the beliefs alone; its results should therefore be read as an upper bound on what the strategy would achieve under strict partial observability. Second, its trump-saving heuristic is applied during the first two rounds regardless of the agent's seat in the round, even though the situation it was designed for is that of the leader. Third, both members of a team always share a strategy, so nothing here says how these agents would perform alongside a partner that reasons differently, which is the more realistic setting for a game that is usually played with whoever is at the table.
+
+\section{Conclusion}
+
+In this paper, we've presented a multi-agent platform for playing the game of \textit{Sueca} and conducted an empirical evaluation to assess its effectiveness and performance. Our evaluation focused on metrics related solely to agent decision-making. Through our analysis we were able to grasp the capabilities and potential of a multi-agent system for playing card games.\\
+
+The \textbf{DeckPredictor} agent was the most effective at winning the game, accumulating and converting the most points per game - making the expected-utility logic, computed over the possible continuations of the current round, the most effective strategy out of the ones we've implemented.\\
+
+The \textbf{Cooperative} agent was the second most effective, making use of a similar $Belief$ track of the game state as the previous agent, but with a simpler decision-making process. That it trails the \textbf{DeckPredictor} by only $3.3$ percentage points, while modelling one hand instead of three, suggests that most of the benefit of reasoning about hidden cards is already captured by paying attention to the partner alone.\\
+
+The \textbf{MaximizePointsWon} and \textbf{MaximizeRoundsWon} agents were the third and fourth most effective, respectively, with the first agent being slightly more effective than the latter agent, both on average ($56.7\%$ against $54.5\%$) and in their head-to-head pairing ($50.8\%$ against $47.0\%$). From this we can conclude that prioritizing points over round wins can be a more effective strategy.\\
+
+The \textbf{Greedy} and the \textbf{Random} agent are the less effective, with the lowest win-rate, points per game and points conversion. These agents served as a baseline for comparison with the other agents and only basic logic was implemented in it, hence the poor performance. It is worth remembering, though, that the \textbf{Greedy} agent only outperforms the \textbf{Random} one because of their head-to-head pairing, and is in fact the weaker of the two against every informed opponent.\\
+
+\noindent In conclusion, the results of the evaluation process provided valuable insights into the performance of the different agent strategies we've come up with and managed to corroborate our initial prediction regarding the effectiveness of each strategy. The clearest lesson we take from the numbers is that the first increment of reasoning is worth much more than the last: knowing which team is currently winning a round, and whether a card can actually take it, separates the agents far more sharply than any of the more elaborate machinery we built on top of it.
+
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{sample-base}
+
+\end{document}
+
+\endinput

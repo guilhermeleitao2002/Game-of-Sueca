@@ -1,61 +1,64 @@
-import numpy as np
-from random import randint
-from Card import Card
-from copy import deepcopy
+from __future__ import annotations
+
 from itertools import product
+from random import randint
+from typing import TYPE_CHECKING
+
+import numpy as np
 from termcolor import colored
-import Team
-import Game
+
+from Card import ORDER_VALUES, SUIT_INDEX, SUITS, Card
+
+if TYPE_CHECKING:
+    from Game import Game
+    from Team import Team
 
 ############################################# Player General Classes #############################################
+
 
 class Player:
     '''
         Player ->
             - name: player name
-            - id: id of the player
-            - hand: list of Card objects the player has (initially 10)
+            - id: id of the player (1 - 4), also its index in the belief arrays
+            - hand: list of Card objects the player has (initially 10), kept sorted by order
             - team: team object to which the player belongs
             - verbose: print the player actions
+            - is_human: whether a person picks this player's cards (human mode only)
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
+    def __init__(self, id: int, name: str, team: Team, v: bool) -> None:
         self.verbose = v
         self.id = id
         self.name = name
         self.hand = []
         self.team = team
+        self.is_human = False
 
-    def add_card(self, card:Card) -> None:
+    def add_card(self, card: Card) -> None:
         '''
-            Add card to player hand and sort it by order to facilitate strategy implementation
+            Add card to player hand, sorted by order so that hand[0] is always the
+            weakest card and hand[-1] the strongest. Every strategy relies on this.
         '''
 
         self.hand.append(card)
-        self.team.initial_points += card.value
-        self.hand = sorted(self.hand, key=lambda x: x.order)
+        self.hand.sort(key=lambda card: card.order)
 
-    def get_cards_by_suit(self, suit:str) -> list[Card]:
+    def get_cards_by_suit(self, suit: str) -> list[Card]:
         '''
-            Get all cards of a given suit
+            Get all cards of a given suit, weakest first
         '''
 
-        filtered_hand = []
-        # For each card
-        for card in self.hand:
-            if card.suit == suit:
-                filtered_hand.append(card)
+        return [card for card in self.hand if card.suit == suit]
 
-        return filtered_hand
-
-    def get_partner(self) -> 'Player':
+    def get_partner(self) -> Player:
         '''
             Get the partner of the player
         '''
 
         return self.team.get_partner(self)
 
-    def get_card(self, card_name:str) -> Card:
+    def get_card(self, card_name: str) -> Card | None:
         '''
             Get the card object from the player's hand
         '''
@@ -64,604 +67,379 @@ class Player:
             if card.name == card_name:
                 return card
 
+        return None
 
-class BeliefPlayer (Player):
+    def play_round(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> tuple[Card, str]:
+        '''
+            Play one card, whichever the strategy picks.
+
+            Common to every strategy: the card leaves the hand, the first player of the
+            round fixes its suit and the play is announced. Subclasses only decide *which*
+            card to play, in choose_card.
+        '''
+
+        card = self.choose_card(position, round_suit, cards_played, game)
+        self.hand.remove(card)
+
+        if position == 0:
+            round_suit = card.suit
+
+        self.announce(card, game.mode)
+
+        return card, round_suit
+
+    def choose_card(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> Card:
+        '''
+            Pick the card to play from the hand. Implemented by each strategy
+        '''
+
+        raise NotImplementedError
+
+    def get_strategy(self) -> str:
+        '''
+            Return the name of the strategy of the player
+        '''
+
+        raise NotImplementedError
+
+    def announce(self, card: Card, mode: str) -> None:
+        '''
+            Print the card played, unless it is only the engine's suggestion to a human
+        '''
+
+        if self.is_human:
+            return
+
+        if self.verbose or mode == 'human':
+            print(colored(f'{self.name} played {card.name}', 'green', attrs=['bold']))
+
+
+class BeliefPlayer(Player):
     '''
         BeliefPlayer ->
-            - id: id of the player
-            - name: player name
-            - team: team object to which the player belongs
-            - v: verbose
-            - beliefs: beliefs of the player
+            - beliefs: probability that a player still holds a card, as a
+                       [player, suit, order] array. Cards this player was dealt sit at 1,
+                       cards already seen at 0, the rest are split evenly between the
+                       players that could still hold them.
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
+    def __init__(self, id: int, name: str, team: Team, v: bool) -> None:
         super().__init__(id, name, team, v)
 
-        # Store the belief at each timestamp [player, suit, card]
+        # Any of the other three players may hold any card we have not seen
         self.beliefs = np.ones((4, 4, 10)) / 3
-        # Set the beliefs of the player itself to 0
+        # We know exactly what we hold, so our own row is filled in by update_beliefs_initial
         self.beliefs[self.id - 1] = 0
 
-    def obtain_suit_index(self, suit: str) -> int:
-        '''
-            Returns the index of a given suit
-        '''
-
-        match suit:
-            case "hearts":
-                return 0
-            case "diamonds":
-                return 1
-            case "clubs":
-                return 2
-            case "spades":
-                return 3
-            case _:
-                raise ValueError("Invalid Suit")
-
-    def update_beliefs_initial(self, card:Card) -> None:
+    def update_beliefs_initial(self, card: Card) -> None:
         '''
             Update the beliefs of the player after the initial handing of cards
         '''
 
-        self.beliefs[:, self.obtain_suit_index(card.suit), card.order] = 0
-        self.beliefs[self.id - 1,
-                     self.obtain_suit_index(card.suit), card.order] = 1
+        self.beliefs[:, SUIT_INDEX[card.suit], card.order] = 0
+        self.beliefs[self.id - 1, SUIT_INDEX[card.suit], card.order] = 1
 
-    def update_beliefs(self, card: Card, round_suit: str, player: Player, mode:str) -> None:
+    def update_beliefs(self, card: Card, round_suit: str, player: Player, mode: str) -> None:
         '''
             Updates the new belief of the player, after a card has been spotted
         '''
 
         if self.verbose and mode == 'auto':
-            print(f"Player {self.name} saw {card.name}")
+            print(f'Player {self.name} saw {card.name}')
 
-        # After a card spotted no one will have it in their hand
-        suit = self.obtain_suit_index(card.suit)
-        self.beliefs[:, suit, card.order] = 0
+        # Once a card is on the table nobody holds it anymore
+        self.beliefs[:, SUIT_INDEX[card.suit], card.order] = 0
 
-        # If the card is not of the round suit, the player no longer has any card of the round suit
+        # Not following suit proves the player has no card of the round suit left
         if card.suit != round_suit:
-            round_suit = self.obtain_suit_index(round_suit)
-            self.beliefs[player.id - 1, round_suit, :] = 0
+            self.beliefs[player.id - 1, SUIT_INDEX[round_suit], :] = 0
 
-        # For each card
-        for i in range(10):
-            # For each suit
-            for j in range(4):
-                # Number of players that may still have the card
-                num_players = np.count_nonzero(self.beliefs[:, j, i])
-                # For each player
-                for p in range(4):
-                    if self.beliefs[p, j, i] != 0:
-                        self.beliefs[p, j, i] = 1 / num_players
+        # Split each remaining card evenly between the players that may still hold it
+        holders = np.count_nonzero(self.beliefs, axis=0)
+        share = np.divide(1.0, holders, out=np.zeros(holders.shape), where=holders > 0)
+        self.beliefs = np.where(self.beliefs > 0, share, 0.0)
 
 
 ############################################# Player Sub Classes #############################################
 
-class RandomPlayer (Player):
+
+class RandomPlayer(Player):
     '''
-        RandomPlayer ->
-            - id: id of the player
-            - name: player name
-            - team: team object to which the player belongs
-            - v: verbose
+        Plays a legal card picked at random
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
-        super().__init__(id, name, team, v)
+    def choose_card(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> Card:
+        if position == 0:
+            return self.hand[randint(0, len(self.hand) - 1)]
 
-    def play_round(self, i:int, round_suit:str, mode:str) -> Card:
-        '''
-            Play a round of the game of Sueca, selecting a card at random in each -round
-        '''
+        cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
+        if cards_of_the_same_suit:
+            return cards_of_the_same_suit[randint(0, len(cards_of_the_same_suit) - 1)]
 
-        if i == 0:  # if the player is the first to play, play a random card
-            cardPlayed = self.hand.pop(randint(0, len(self.hand) - 1))
-            round_suit = cardPlayed.suit
-        else:       # if the player is not the first to play, play a card of the same suit if possible
-            cardsOfTheSameSuit = self.get_cards_by_suit(round_suit)
-            if len(cardsOfTheSameSuit) != 0:    # if the player has cards of the same suit
-                cardPlayed = cardsOfTheSameSuit[randint(
-                    0, len(cardsOfTheSameSuit) - 1)]
-                self.hand.remove(cardPlayed)
-            else:                               # if the player does not have cards of the same suit
-                cardPlayed = self.hand.pop(randint(0, len(self.hand) - 1))
-
-        if self.verbose or (mode == 'human' and self.name != 'Leitao'):
-            print(
-                colored(f"{self.name} played {cardPlayed.name}", 'green', attrs=['bold']))
-
-        return cardPlayed, round_suit
+        return self.hand[randint(0, len(self.hand) - 1)]
 
     def get_strategy(self) -> str:
-        '''
-            Return the strategy of the player
-            In this case, the strategy is just random
-        '''
-
         return 'Random Agent'
 
 
-class GreedyPlayer (Player):
+class GreedyPlayer(Player):
     '''
-        GreedyPlayer ->
-            - id: id of the player
-            - name: player name
-            - team: team object to which the player belongs
-            - v: verbose
+        Always plays its highest ranked legal card
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
-        super().__init__(id, name, team, v)
-
-    def play_round(self, i:int, round_suit:str, mode:str) -> tuple[Card, str]:
-        '''
-            Play a round of the game of Sueca, selecting the highest ranked card
-        '''
-
-        if i == 0:
-            card_played = self.hand[-1]
-            round_suit = card_played.suit
-            self.hand.remove(card_played)
-            return card_played, round_suit
+    def choose_card(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> Card:
+        if position == 0:
+            return self.hand[-1]
 
         cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
-        if len(cards_of_the_same_suit) != 0:    # if the player has cards of the same suit
-            card_played = cards_of_the_same_suit[-1]
-            self.hand.remove(card_played)
-        else:                               # if the player does not have cards of the same suit
-            card_played = self.hand[-1]
-            self.hand.remove(card_played)
 
-        if self.verbose or (mode == 'human' and self.name != 'Leitao'):
-            print(
-                colored(f"{self.name} played {card_played.name}", 'green', attrs=['bold']))
-
-        return card_played, round_suit
+        return cards_of_the_same_suit[-1] if cards_of_the_same_suit else self.hand[-1]
 
     def get_strategy(self) -> str:
-        '''
-            Return the strategy of the player
-            In this case, the strategy is just random
-        '''
-
         return 'Greedy Player'
 
 
-class MaximizePointsPlayer (Player):
+class MaximizePointsPlayer(Player):
     '''
-        MaximizePointsPlayer ->
-            - id: id of the player
-            - name: player name
-            - team: team object to which the player belongs
-            - v: verbose
+        Plays to capture as many points as possible in the current round
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
-        super().__init__(id, name, team, v)
+    def choose_card(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> Card:
+        if position == 0:
+            return self.hand[-1]
 
-    def play_round(self, i:int, cards_played:list[Card], round_suit:str, players_order:list[Player], game:Game, mode:str) -> Card:
-        '''
-            Play a round of the game of Sueca, selecting the card that maximizes the points won
-        '''
+        cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
+        so_far = game.evaluate_round(cards_played)
 
-        if i == 0:
-            cardPlayed = self.hand[-1]
-            round_suit = cardPlayed.suit
-            self.hand.remove(cardPlayed)
-        else:
-            cardsOfTheSameSuit = self.get_cards_by_suit(round_suit)
-            _, winner = game.calculate_round_points(cards_played)
-            player_winner = players_order[winner[1]]
-            if player_winner.team == self.team:  # if the same team
-                if cardsOfTheSameSuit:  # play strongest card from same suit
-                    cardPlayed = cardsOfTheSameSuit[-1]
-                    self.hand.remove(cardPlayed)
-                else:
-                    # else play strongest from another suit
-                    cardPlayed = self.hand[-1]
-                    self.hand.remove(cardPlayed)
-            else:  # if different team
-                if cardsOfTheSameSuit:  # if have cards from suit
-                    cardPlayed = cardsOfTheSameSuit[-1]
-                    if cardPlayed.order > winner[0].order:  # if can win
-                        self.hand.remove(cardPlayed)  # play strongest card
-                    else:
-                        # else play weakest card
-                        cardPlayed = cardsOfTheSameSuit[0]
-                        self.hand.remove(cardPlayed)
-                else:
-                    trumpCards = self.get_cards_by_suit(game.trump.suit)
-                    if trumpCards:  # if has trump, play the strongest trump card
-                        cardPlayed = trumpCards[-1]
-                        self.hand.remove(cardPlayed)
-                    else:
-                        cardPlayed = self.hand[0]  # play weakest card
-                        self.hand.remove(cardPlayed)
+        if game.playersOrder[so_far.winner].team is self.team:      # our side is winning it
+            # play the strongest card we can, to pile points onto the round
+            return cards_of_the_same_suit[-1] if cards_of_the_same_suit else self.hand[-1]
 
-        if self.verbose or (mode == 'human' and self.name != 'Leitao'):
-            print(colored(f"{self.name} played {cardPlayed.name}", 'green', attrs=['bold']))
+        if cards_of_the_same_suit:
+            strongest = cards_of_the_same_suit[-1]
+            if strongest.beats(so_far.card, game.trump.suit):
+                return strongest
 
-        return cardPlayed, round_suit
+            return cards_of_the_same_suit[0]                        # cannot win, so give away as little as possible
+
+        trump_cards = self.get_cards_by_suit(game.trump.suit)
+
+        return trump_cards[-1] if trump_cards else self.hand[0]
 
     def get_strategy(self) -> str:
-        '''
-            Return the strategy of the player
-        '''
-
         return 'Maximize Points Won'
 
 
-class MaximizeRoundsWonPlayer (Player):
+class MaximizeRoundsWonPlayer(Player):
     '''
-        MaximizeRoundsWonPlayer ->
-            - id: id of the player
-            - name: player name
-            - team: team object to which the player belongs
-            - v: verbose
+        Plays to win as many rounds as possible, spending as little as it can on each
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
-        super().__init__(id, name, team, v)
+    def choose_card(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> Card:
+        if position == 0:
+            return self.hand[-1]
 
-    def play_round(self, i:int, cards_played:list[Card], round_suit:str, players_order:list[Player], game:Game, mode:str) -> Card:
-        '''
-            Play a round of the game of Sueca, selecting the card that maximizes the rounds won
-        '''
+        cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
+        so_far = game.evaluate_round(cards_played)
 
-        if i == 0:
-            cardPlayed = self.hand[-1]
-            round_suit = cardPlayed.suit
-            self.hand.remove(cardPlayed)
-        else:
-            cardsOfTheSameSuit = self.get_cards_by_suit(round_suit)
-            _, winner = game.calculate_round_points(cards_played)
-            player_winner = players_order[winner[1]]
-            if player_winner.team == self.team:  # if the same team
-                if cardsOfTheSameSuit:  # play weakest card from the same suit
-                    # preserves all strong cards
-                    cardPlayed = cardsOfTheSameSuit[0]
-                    self.hand.remove(cardPlayed)
-                else:
-                    # else play weakest from other suit
-                    cardPlayed = self.hand[0]
-                    self.hand.remove(cardPlayed)
-            else:
-                cardPlayed = None  # if different team
-                if cardsOfTheSameSuit:  # if have cards from suit
-                    for card in cardsOfTheSameSuit:
-                        # Search for the lowest card that can win
-                        if card.order > winner[0].order:
-                            cardPlayed = card
-                            self.hand.remove(card)
-                            break
-                    if not cardPlayed:  # if cant win
-                        cardPlayed = cardsOfTheSameSuit[0]  # play weakest card
-                        self.hand.remove(cardPlayed)
-                else:
-                    trumpCards = self.get_cards_by_suit(game.trump.suit)
-                    if trumpCards:  # if has trump, play the weakest trump card
-                        cardPlayed = trumpCards[0]
-                        self.hand.remove(cardPlayed)
-                    else:
-                        cardPlayed = self.hand[0]  # play weakest card
-                        self.hand.remove(cardPlayed)
+        if game.playersOrder[so_far.winner].team is self.team:      # our side is winning it
+            # preserve every strong card
+            return cards_of_the_same_suit[0] if cards_of_the_same_suit else self.hand[0]
 
-        if self.verbose or (mode == 'human' and self.name != 'Leitao'):
-            print(colored(f"{self.name} played {cardPlayed.name}", 'green', attrs=['bold']))
+        if cards_of_the_same_suit:
+            for card in cards_of_the_same_suit:                     # cheapest card that actually takes the round
+                if card.beats(so_far.card, game.trump.suit):
+                    return card
 
-        return cardPlayed, round_suit
+            return cards_of_the_same_suit[0]
+
+        trump_cards = self.get_cards_by_suit(game.trump.suit)
+
+        return trump_cards[0] if trump_cards else self.hand[0]
 
     def get_strategy(self) -> str:
-        '''
-            Return the strategy of the player
-        '''
-
         return 'Maximize Rounds Won'
 
 
-class CooperativePlayer (BeliefPlayer):
+class CooperativePlayer(BeliefPlayer):
     '''
-        CooperativePlayer ->
-            - id: id of the player
-            - name: player name
-            - team: team object to which the player belongs
-            - v: verbose
+        Plays as a team player, using what it believes its partner still holds
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
-        super().__init__(id, name, team, v)
+    def choose_card(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> Card:
+        partner_belief = self.beliefs[self.get_partner().id - 1]
+        own_belief = self.beliefs[self.id - 1]
 
-    def update_beliefs_initial(self, card:Card) -> None:
+        # Points we expect each side of the partnership to be holding, per suit and order
+        card_points = np.array(ORDER_VALUES)
+        partner_points = partner_belief * card_points
+        player_points = own_belief * card_points
+
+        if position == 0:
+            return self.lead(partner_belief, partner_points + player_points, game)
+
+        if position == 1:
+            return self.play_second(round_suit, partner_belief, player_points, partner_points, cards_played, game)
+
+        return self.play_late(round_suit, cards_played, game)
+
+    def lead(self, partner_belief: np.ndarray, possible_points: np.ndarray, game: Game) -> Card:
         '''
-            Update the beliefs of the player after the initial handing of cards
+            Open the round, ideally with a suit our partner can profit from
         '''
 
-        return super().update_beliefs_initial(card)
+        trump_index = SUIT_INDEX[game.trump.suit]
 
-    def update_beliefs(self, card:Card, round_suit:str, player:Player, mode:str) -> None:
+        # A suit our partner is void in, while still holding trumps, is a suit they can cut
+        for suit in SUITS:
+            cards_of_the_same_suit = self.get_cards_by_suit(suit)
+            if cards_of_the_same_suit and not partner_belief[SUIT_INDEX[suit]].any() \
+                    and partner_belief[trump_index].any():
+                return cards_of_the_same_suit[-1]
+
+        # Otherwise lead the suit in which the partnership holds the most points
+        for suit in SUITS:
+            if not self.get_cards_by_suit(suit):
+                possible_points[SUIT_INDEX[suit]] = 0
+
+        if possible_points.any():
+            best_suit = SUITS[int(np.argmax(possible_points.sum(axis=1)))]
+            return self.get_cards_by_suit(best_suit)[-1]
+
+        # TODO: Make the player save the trumps in case he has no more points
+        return self.hand[-1]
+
+    def play_second(self, round_suit: str, partner_belief: np.ndarray, player_points: np.ndarray,
+                    partner_points: np.ndarray, cards_played: list[Card], game: Game) -> Card:
         '''
-            The card was seen so we now know that no player no longer has it
+            Play right after the opening, with two opponents still to come
         '''
 
-        super().update_beliefs(card, round_suit, player, mode)
+        cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
+        suit_index = SUIT_INDEX[round_suit]
+        partner_can_cut = partner_belief[SUIT_INDEX[game.trump.suit]].any() and not partner_belief[suit_index].any()
 
-    def play_round(self, i:int, round_suit:str, game: Game, cards_played_in_round: list[Card]) -> tuple[Card, str]:
+        if partner_can_cut and cards_of_the_same_suit:
+            # Our partner takes the round whatever we do, so feed them our best card
+            return cards_of_the_same_suit[-1]
+
+        if not cards_of_the_same_suit:
+            trump_cards = self.get_cards_by_suit(game.trump.suit)
+            if trump_cards:
+                return trump_cards[0]
+
+            # If our partner is cutting, discard the card worth the most to them
+            return self.hand[-1] if partner_can_cut else self.hand[0]
+
+        so_far = game.evaluate_round(cards_played)
+        if so_far.card.suit == round_suit:
+            # Only worth fighting for if the round has not been cut already
+            for order in range(so_far.card.order + 1, 10):
+                if player_points[suit_index][order] > 0 or partner_points[suit_index][order] > 0:
+                    return cards_of_the_same_suit[-1]
+
+        return cards_of_the_same_suit[0]
+
+    def play_late(self, round_suit: str, cards_played: list[Card], game: Game) -> Card:
         '''
-            Play a round of the game of Sueca, selecting the card, considering
-            the cards that its partner has, acting as a "team player"
+            Play third or fourth, when the round is nearly decided
         '''
 
-        players_order = game.playersOrder
-        mode = game.mode
-        partner_id = self.get_partner().id
-        partner_belief = self.beliefs[partner_id - 1]
-        player_belief = self.beliefs[self.id - 1]
-        suits = np.array(["hearts", "diamonds", "clubs", "spades"])
-        player_points = np.ones((4, 10))
-        partner_points = np.ones((4, 10))
-        card_points = np.array([0, 0, 0, 0, 0, 2, 3, 4, 10, 11])
+        cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
+        so_far = game.evaluate_round(cards_played)
 
-        for suit in suits:
-            suit_index = self.obtain_suit_index(suit)
-            for p in range(10):
-                # Check the suit for which the partner has the best cards
-                partner_points[suit_index][p] *= partner_belief[suit_index,
-                                                                p] * card_points[p]
-                player_points[suit_index][p] *= player_belief[suit_index,
-                                                              p] * card_points[p]
+        if game.playersOrder[so_far.winner] is self.get_partner():
+            return cards_of_the_same_suit[-1] if cards_of_the_same_suit else self.hand[-1]
 
-        possible_points = partner_points + player_points
-        if i == 0:
-            # if the player is the first to play, try to play a suit for the
-            # partner to use a trump card
+        if cards_of_the_same_suit:
+            strongest = cards_of_the_same_suit[-1]
+            if strongest.beats(so_far.card, game.trump.suit):
+                return strongest
 
-            for suit in suits:
-                suit_index = self.obtain_suit_index(suit)
-                cards_of_the_same_suit = self.get_cards_by_suit(suit)
-                if np.count_nonzero(partner_belief[suit_index]) == 0 and\
-                        np.count_nonzero(partner_belief[self.obtain_suit_index(game.trump.suit)]) != 0\
-                        and len(cards_of_the_same_suit) > 0:
-                    card_played = cards_of_the_same_suit[-1]
-                    self.hand.remove(cards_of_the_same_suit[-1])
-                    return card_played, suit
+            return cards_of_the_same_suit[0]
 
-            # Check the cards we have for which the partner has the best cards
-            for suit in suits:
-                suit_index = self.obtain_suit_index(suit)
-                cards_to_play = self.get_cards_by_suit(suit)
-                if len(cards_to_play) == 0:
-                    possible_points[suit_index] = 0
+        trump_cards = self.get_cards_by_suit(game.trump.suit)
 
-            if np.count_nonzero(possible_points) > 0:
-                suit_to_play = np.argmax(np.sum(possible_points, axis=1))
-                cards_of_the_same_suit = self.get_cards_by_suit(
-                    suits[suit_to_play])
-                card_played = cards_of_the_same_suit[-1]
-                self.hand.remove(cards_of_the_same_suit[-1])
-                return card_played, suits[suit_to_play]
-
-            # TODO: Make the player save the trumps in case he has no more points
-            card_played = self.hand[-1]
-            self.hand.remove(card_played)
-            return card_played, card_played.suit
-
-        if i == 1:
-            cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
-            suit_index = self.obtain_suit_index(round_suit)
-            if np.count_nonzero(partner_belief[self.obtain_suit_index(game.trump.suit)]) != 0\
-                    and len(cards_of_the_same_suit) > 0 and\
-                    np.count_nonzero(partner_belief[suit_index]) == 0:
-                # In this case independently of our play our partner can cut
-                card_played = cards_of_the_same_suit[-1]
-
-            # Check if either we or our partner can cut
-            elif len(cards_of_the_same_suit) == 0:
-                trump_cards = self.get_cards_by_suit(game.trump.suit)
-                if trump_cards:  # if has trump, play the weakest trump card
-                    card_played = trump_cards[0]
-                else:
-                    if np.count_nonzero(partner_belief[self.obtain_suit_index(game.trump.suit)]) != 0 and\
-                            np.count_nonzero(partner_belief[suit_index]) == 0:
-                        card_played = self.hand[-1]  # play weakest card
-                    else:
-                        card_played = self.hand[0]
-            else:
-                _, winner = game.calculate_round_points(cards_played_in_round)
-                # Search for the lowest card that can win
-                winning_card_found = False
-                if np.count_nonzero(possible_points[suit_index]) > 0:
-                    for k in range(10):
-                        if (player_points[suit_index][k] > 0 or partner_points[suit_index][k] > 0)\
-                                and k > winner[0].order:
-                            if cards_of_the_same_suit:
-                                card_played = cards_of_the_same_suit[-1]
-                            else:
-                                card_played = self.hand[-1]
-                            winning_card_found = True
-                            break
-                if not winning_card_found:
-                    card_played = cards_of_the_same_suit[0]
-            self.hand.remove(card_played)
-
-        else:       # if the player is not the first to play, play a card of the same suit if possible
-            cards_of_the_same_suit = self.get_cards_by_suit(round_suit)
-            _, winner = game.calculate_round_points(cards_played_in_round)
-            player_winner = players_order[winner[1]]
-            if player_winner == self.get_partner():  # if the same team
-                if cards_of_the_same_suit:  # play strongest card from same suit
-                    card_played = cards_of_the_same_suit[-1]
-                    self.hand.remove(card_played)
-                else:
-                    # else play strongest from another suit
-                    card_played = self.hand[-1]
-                    self.hand.remove(card_played)
-            else:  # if different team
-                if cards_of_the_same_suit:  # if have cards from suit
-                    card_played = cards_of_the_same_suit[-1]
-                    if card_played.order > winner[0].order:  # if can win
-                        self.hand.remove(card_played)  # play strongest card
-                    else:
-                        # else play weakest card
-                        card_played = cards_of_the_same_suit[0]
-                        self.hand.remove(card_played)
-                else:
-                    trumpCards = self.get_cards_by_suit(game.trump.suit)
-                    if trumpCards:  # if has trump, play the strongest trump card
-                        card_played = trumpCards[-1]
-                        self.hand.remove(card_played)
-                    else:
-                        card_played = self.hand[0]  # play weakest card
-                        self.hand.remove(card_played)
-
-        if self.verbose or (mode == 'human' and self.name != 'Leitao'):
-            print(
-                colored(f"{self.name} played {card_played.name}", 'green', attrs=['bold']))
-
-        return card_played, round_suit
+        return trump_cards[-1] if trump_cards else self.hand[0]
 
     def get_strategy(self) -> str:
-        '''
-            Return the strategy of the player
-        '''
-
         return 'Cooperative Player'
 
 
-class PredictorPlayer (BeliefPlayer):
+class PredictorPlayer(BeliefPlayer):
     '''
-        PredictorPlayer ->
-            - id: id of the player
-            - name: player name
-            - team: team object to which the player belongs
-            - v: verbose
+        Plays the card with the best expected round points, weighing every card the
+        players yet to play might answer with by how likely they are to hold it
     '''
 
-    def __init__(self, id:int, name:str, team:'Team', v:bool) -> None:
-        super().__init__(id, name, team, v)
+    # Utility penalty used to push a card to the bottom of the ranking
+    AVOID = 1000
 
-    def update_beliefs_initial(self, card:Card) -> None:
+    def get_player_possible_cards(self, player: Player, suit: str = 'all') -> tuple[list[Card], list[float]]:
         '''
-            Update the beliefs of the player after the initial handing of cards
-        '''
-
-        return super().update_beliefs_initial(card)
-
-    def update_beliefs(self, card:Card, round_suit:str, player:Player, mode:str) -> None:
-        '''
-            Update the beliefs of the player after a card has been spotted
+            The cards a player could answer with, and how likely they are to hold each
         '''
 
-        super().update_beliefs(card, round_suit, player, mode)
+        player_cards = player.get_cards_by_suit(suit) if suit != 'all' else list(player.hand)
+        if not player_cards:                        # void in the round suit, so anything goes
+            player_cards = list(player.hand)
 
-    def get_player_possible_cards(self, player:Player, suit:str='all') -> tuple[list[Card], list[float]]:
-        '''
-            Returns the cards of a given player
-        '''
+        cards_probability = [self.beliefs[player.id - 1, SUIT_INDEX[card.suit], card.order] for card in player_cards]
 
-        if suit != 'all':
-            player_cards = player.get_cards_by_suit(suit)
-            if player_cards == []:
-                player_cards = deepcopy(player.hand)
-        else:
-            player_cards = deepcopy(player.hand)
+        return player_cards, cards_probability
 
-        # Get the probability of each card in beliefs
-        cards_prob = []
-        for card in player_cards:
-            cards_prob.append(
-                self.beliefs[player.id - 1, self.obtain_suit_index(card.suit), card.order])
+    def choose_card(self, position: int, round_suit: str, cards_played: list[Card], game: Game) -> Card:
+        players_order = game.playersOrder
 
-        return player_cards, cards_prob
-
-    def play_round(self, i:int, cards_played_in_round:list[Card], round_suit:str, players_order:list[Player], game:Game, mode:str, num_round:int) -> tuple[Card, str]:
-        '''
-            Play a round of Sueca, selecting the card considering the cards that its partner has,
-            acting as a "team player", and using utility based on projected round points and
-            probabilities of card holdings.
-        '''
         cards_to_play = {}
         cards_probability = {}
         for player in players_order:
-            if i == 0 or not player.get_cards_by_suit(round_suit):
-                cards_to_play[player.id], cards_probability[player.id] = self.get_player_possible_cards(
-                    player)
-            else:
-                cards_to_play[player.id], cards_probability[player.id] = self.get_player_possible_cards(
-                    player, round_suit)
+            suit = 'all' if position == 0 or not player.get_cards_by_suit(round_suit) else round_suit
+            cards_to_play[player.id], cards_probability[player.id] = self.get_player_possible_cards(player, suit)
 
-        utility_per_card = {}
+        still_to_play = [player.id for player in players_order[position + 1:]]
+        possible_plays = [cards_to_play[player_id] for player_id in still_to_play]
+        possible_probabilities = [cards_probability[player_id] for player_id in still_to_play]
 
+        utilities = []
         for card in cards_to_play[self.id]:
             expected_utility = 0
-            other_players_ids = [
-                player.id for player in players_order if players_order.index(player) > i]
-            possible_plays_combinations = [
-                cards_to_play[pid] for pid in other_players_ids]
-            probabilities_combinations = [
-                cards_probability[pid] for pid in other_players_ids]
 
-            # Create cartesian product of all combinations with their probabilities
-            for other_cards_tuple in product(*possible_plays_combinations):
+            # Cartesian product of every answer the remaining players could give
+            for other_cards in product(*possible_plays):
                 combination_probability = np.prod([
-                    probabilities_combinations[j][possible_plays_combinations[j].index(
-                        card)]
-                    for j, card in enumerate(other_cards_tuple)
+                    possible_probabilities[i][possible_plays[i].index(other_card)]
+                    for i, other_card in enumerate(other_cards)
                 ])
 
-                # Simulate this card being played along with the combination
-                simulated_cards_played = cards_played_in_round + \
-                    [card] + list(other_cards_tuple)
-                round_points, winning_card = game.calculate_round_points(
-                    simulated_cards_played)
-                if players_order[winning_card[1]].team.name == self.team.name:
-                    expected_utility += round_points * combination_probability
+                simulated = game.evaluate_round(cards_played + [card] + list(other_cards))
+                if players_order[simulated.winner].team is self.team:
+                    expected_utility += simulated.points * combination_probability
                 else:
-                    expected_utility -= round_points * combination_probability
+                    expected_utility -= simulated.points * combination_probability
 
-            utility_per_card[card] = expected_utility
-
-        utilities = [(card.name, utility_per_card[card])
-                     for card in utility_per_card.keys()]
+            utilities.append((card, expected_utility))
 
         ##############################################################
         # NOTE: In here, put individual strategies that you remember #
         ##############################################################
-        if num_round < 2:    # In the first 2 rounds, if you are the first to play
-            # Avoid using the trump card by decreasing its utility
-            for card in utilities:
-                if self.get_card(card[0]).suit == game.trump.suit:
-                    utilities[utilities.index(card)] = (card[0], card[1] - 1000)    # NOT REALLY DOING ANYTHING BUT IT SHOULD RIGHT?
+        if game.current_round < 2:
+            # Hold on to the trumps early on, by pushing their utility down
+            utilities = [(card, utility - self.AVOID if card.suit == game.trump.suit else utility)
+                         for card, utility in utilities]
         ##############################################################
         # NOTE: In here, put individual strategies that you remember #
         ##############################################################
 
-        # Sort the cards by utility
-        utilities = sorted(utilities, key=lambda x: x[1], reverse=True)
+        # Highest utility wins. The sort is stable and the hand is ordered, so ties go to
+        # the weakest card.
+        utilities.sort(key=lambda entry: entry[1], reverse=True)
 
-        # Print the card.name and its utility
-        if self.verbose and mode == 'auto':
-            print(
-                f"Player {self.name} has the following utilities: {utilities}")
+        if self.verbose and game.mode == 'auto':
+            print(f'Player {self.name} has the following utilities: '
+                  f'{[(card.name, utility) for card, utility in utilities]}')
 
-        # Get the card with the highest utility
-        # If there is a draw, the first card with the lowest card.order is chosen
-        best_card = self.get_card(utilities[0][0])
-        if i == 0:
-            round_suit = best_card.suit
-        self.hand.remove(best_card)
-
-        if self.verbose and mode == 'auto' or (mode == 'human' and self.name != 'Leitao'):
-            print(colored(f"{self.name} played {best_card.name}", 'green', attrs=['bold']))
-
-        return best_card, round_suit
+        return utilities[0][0]
 
     def get_strategy(self) -> str:
-        '''
-            Return the strategy of the player
-            In this case, the strategy is just random
-        '''
-
         return 'Deck Predictor'

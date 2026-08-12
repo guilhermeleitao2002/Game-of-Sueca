@@ -1,2 +1,2 @@
 
-Goodbye!
+Wins: {'Sporting': 4642, 'Benfica': 5146, 'ties': 212, 'average_points_per_game_sporting': 58.6315, 'average_points_per_game_benfica': 61.3685, 'converted_points_sporting': -1.2601, 'converted_points_benfica': 1.2601}
