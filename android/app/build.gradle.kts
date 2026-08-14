@@ -33,8 +33,8 @@ android {
         applicationId = "pt.up.fe.asma.sueca"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
         resourceConfigurations += listOf("en")
     }
 
@@ -65,6 +65,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // The Anthropic SDK is a server-JVM library: it reaches for java.time and friends that
+        // only exist from API 26. Desugaring backfills them down to this app's minSdk of 24.
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -106,6 +109,10 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
     implementation(libs.mlkit.text.recognition)
+
+    // Optional cloud reader: only ever used when the person supplies their own API key.
+    implementation(libs.anthropic.java)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     testImplementation(libs.junit)
 }

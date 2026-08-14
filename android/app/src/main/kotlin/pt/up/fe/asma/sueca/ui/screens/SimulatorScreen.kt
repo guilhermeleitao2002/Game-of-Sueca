@@ -160,7 +160,9 @@ private fun ResultsPanel(summary: SimulationSummary) {
                         Modifier
                             .weight(summary.ties.toFloat().coerceAtLeast(0.001f) / total)
                             .height(14.dp)
-                            .background(Color.Gray),
+                            // Not Color.Gray: it belongs to no palette and reads as a different
+                            // grey from the one under the bar.
+                            .background(Color.White.copy(alpha = 0.35f)),
                     )
                     Box(
                         Modifier
@@ -173,7 +175,11 @@ private fun ResultsPanel(summary: SimulationSummary) {
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("$sporting wins", style = MaterialTheme.typography.labelLarge, color = TeamId.SPORTING.color())
-                Text("${summary.ties} ties", style = MaterialTheme.typography.labelLarge, color = Color.Gray)
+                Text(
+                    text = "${summary.ties} ties",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text("$benfica wins", style = MaterialTheme.typography.labelLarge, color = TeamId.BENFICA.color())
             }
 

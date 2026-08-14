@@ -243,6 +243,33 @@ as it grows, which is the quickest way to see whether it is working.
 Profiles live in `filesDir/deck-profiles/*.deck` as readable text, and *Settings → Card scanner*
 picks which one is active (or none, for the built-in shapes).
 
+### The cloud reader (optional, and yours to pay for)
+
+When a deck defeats the on-device pipeline even after training, *Settings → Cloud card reader*
+takes the other route: one photograph of the whole hand, read by Claude's vision in a single
+request. The scanner grows a **Read the whole hand with Claude** button, and what comes back is
+merged into the same basket the local pipeline fills.
+
+It is deliberately shaped as the opposite of the live scanner — one good photo instead of thirty
+frames a second — because a model call takes a couple of seconds and costs real money, so it is
+worth spending once over ten cards rather than continuously over one.
+
+Three things are true of it and worth stating plainly:
+
+- **It is not free.** Each photo costs roughly one to two US cents, billed to your own key. The
+  still is scaled to 1800 px on its long edge before it is sent, which is the main lever on that
+  cost.
+- **It needs the network, and the photo leaves the device.** Nothing else in the app ever does.
+- **No API key ships with the app.** This is published as a public APK; a bundled key would be
+  extractable by anyone who downloaded it and billed to whoever owned it. You paste your own
+  (from `console.anthropic.com`) into Settings, it is stored in this app's private storage, and
+  with no key the feature does not exist — the app stays entirely offline.
+
+The request uses `claude-opus-5` with a **JSON schema** (`output_config.format`) rather than a
+"please reply in JSON" instruction, so the answer is guaranteed to parse: a misread comes back
+as a wrong card, never as a crash. The model is told the deck has no 8s, 9s or 10s, that R/D/V
+mean K/Q/J on some decks, and to leave out any card it cannot actually read rather than guess.
+
 **Why this and not reinforcement learning.** A correction carries the answer, not a reward, and
 there is no sequence of actions to assign credit across — so the problem is supervised, and the
 cheapest supervised method that works from four examples is nearest neighbour over prototypes.
@@ -253,6 +280,8 @@ examples to recover what the label told it directly.
 
 ## Notes and limitations
 
+- A card cannot be taken back once it is on the table, so *Play a game* asks before committing
+  one. Turn it off in Settings if you would rather tap once.
 - The APK is large (~45 MB release) because the ML Kit text model is **bundled**, which is what
   makes scanning work offline. Swapping `com.google.mlkit:text-recognition` for
   `com.google.android.gms:play-services-mlkit-text-recognition` moves the model into Play

@@ -42,12 +42,15 @@ interface Strategy {
 enum class AgentKind(
     val cliName: String,
     val displayName: String,
+    /** [displayName] cut down to fit a seat label at the edge of the table. */
+    val shortName: String,
     val tagline: String,
     val description: String,
 ) {
     RANDOM(
         cliName = "random",
         displayName = "Random Agent",
+        shortName = "Random",
         tagline = "Plays anything legal",
         description = "Picks uniformly at random among the cards it is allowed to play. " +
             "The baseline every other agent is measured against.",
@@ -55,6 +58,7 @@ enum class AgentKind(
     GREEDY(
         cliName = "greedy",
         displayName = "Greedy Player",
+        shortName = "Greedy",
         tagline = "Always the strongest card",
         description = "Plays its highest ranked legal card, every single time. Wins early " +
             "tricks and then has nothing left to win the ones that carry points.",
@@ -62,6 +66,7 @@ enum class AgentKind(
     MAX_POINTS(
         cliName = "maxpointswon",
         displayName = "Maximize Points Won",
+        shortName = "Max points",
         tagline = "Chases the points on the table",
         description = "Looks at what the trick is already worth. Piles points on when its own " +
             "side is winning, takes the trick when it can, and throws its cheapest card when it cannot.",
@@ -69,6 +74,7 @@ enum class AgentKind(
     MAX_ROUNDS(
         cliName = "maxroundswon",
         displayName = "Maximize Rounds Won",
+        shortName = "Max rounds",
         tagline = "Wins tricks as cheaply as possible",
         description = "Takes the trick with the weakest card that still takes it, and saves " +
             "everything strong for later. Ignores how many points are actually at stake.",
@@ -76,6 +82,7 @@ enum class AgentKind(
     COOPERATIVE(
         cliName = "cooperative",
         displayName = "Cooperative Player",
+        shortName = "Cooperative",
         tagline = "Plays for the partnership",
         description = "Tracks what its partner can still be holding and plays to set them up: " +
             "leads suits they can cut, feeds them points when they are taking the trick.",
@@ -83,6 +90,7 @@ enum class AgentKind(
     PREDICTOR(
         cliName = "predictor",
         displayName = "Deck Predictor",
+        shortName = "Predictor",
         tagline = "Searches every answer the table can give",
         description = "Enumerates the cards every player still to act might answer with, weighs " +
             "each by how likely they are to hold it, and plays the card with the best expected trick.",

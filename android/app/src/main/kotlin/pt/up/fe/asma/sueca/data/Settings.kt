@@ -34,10 +34,21 @@ data class AppSettings(
     val opponentAgent: AgentKind = AgentKind.MAX_POINTS,
     val fairPlay: Boolean = true,
     val showHints: Boolean = true,
+    /** Ask before committing a card. A card on the table cannot be taken back. */
+    val confirmPlays: Boolean = true,
     val agentDelayMillis: Int = 650,
     /** Id of the trained deck the scanner should match against, or null for the built-in shapes. */
     val deckProfileId: String? = null,
+    /**
+     * The user's own Anthropic API key, kept in this app's private storage and sent nowhere
+     * except api.anthropic.com. No key ships with the app: it is published as a public APK, so
+     * a bundled key would be extractable by anyone who downloaded it and billed to whoever owned
+     * it. Empty means the cloud reader is simply off.
+     */
+    val claudeApiKey: String? = null,
 ) {
+
+    val cloudReaderEnabled: Boolean get() = !claudeApiKey.isNullOrBlank()
 
     /** The rules the agents play under in a game against a person. */
     val playConfig: EngineConfig
@@ -56,8 +67,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 opponentAgent = preferences.agent(OPPONENT_AGENT, AgentKind.MAX_POINTS),
                 fairPlay = preferences[FAIR_PLAY] ?: true,
                 showHints = preferences[SHOW_HINTS] ?: true,
+                confirmPlays = preferences[CONFIRM_PLAYS] ?: true,
                 agentDelayMillis = preferences[AGENT_DELAY] ?: 650,
                 deckProfileId = preferences[DECK_PROFILE]?.takeIf { it.isNotEmpty() },
+                claudeApiKey = preferences[CLAUDE_API_KEY]?.takeIf { it.isNotBlank() },
             )
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
@@ -72,10 +85,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     fun setShowHints(enabled: Boolean) = put(SHOW_HINTS, enabled)
 
+    fun setConfirmPlays(enabled: Boolean) = put(CONFIRM_PLAYS, enabled)
+
     fun setAgentDelay(millis: Int) = put(AGENT_DELAY, millis)
 
     /** Pass null to go back to the built-in suit shapes. */
     fun setDeckProfile(id: String?) = put(DECK_PROFILE, id.orEmpty())
+
+    /** Pass an empty string to forget the key and turn the cloud reader off again. */
+    fun setClaudeApiKey(key: String) = put(CLAUDE_API_KEY, key.trim())
 
     private fun <T> put(key: Preferences.Key<T>, value: T) {
         viewModelScope.launch { store.edit { it[key] = value } }
@@ -90,8 +108,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         val OPPONENT_AGENT = stringPreferencesKey("opponent_agent")
         val FAIR_PLAY = booleanPreferencesKey("fair_play")
         val SHOW_HINTS = booleanPreferencesKey("show_hints")
+        val CONFIRM_PLAYS = booleanPreferencesKey("confirm_plays")
         val AGENT_DELAY = intPreferencesKey("agent_delay")
         val DECK_PROFILE = stringPreferencesKey("deck_profile")
+        val CLAUDE_API_KEY = stringPreferencesKey("claude_api_key")
     }
 }
 

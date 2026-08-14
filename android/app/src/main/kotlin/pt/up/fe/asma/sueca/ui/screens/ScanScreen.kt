@@ -11,14 +11,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,6 +63,7 @@ fun ScanScreen(
     val state by viewModel.state.collectAsState()
 
     LaunchedEffect(settings.deckProfileId) { viewModel.useProfile(settings.deckProfileId) }
+    LaunchedEffect(settings.claudeApiKey) { viewModel.useApiKey(settings.claudeApiKey) }
 
     ScreenScaffold(
         title = "Scan cards",
@@ -76,6 +82,9 @@ fun ScanScreen(
         ) {
             CameraSurface(
                 scanner = viewModel.scanner,
+                // Preview + analysis + capture is one use case more than some older cameras will
+                // bind, so the still capture only joins when there is something to use it for.
+                capture = if (settings.cloudReaderEnabled) viewModel.capture else null,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
@@ -123,6 +132,32 @@ fun ScanScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+
+                    state.message?.let { message ->
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Gold,
+                        )
+                    }
+
+                    if (settings.cloudReaderEnabled) {
+                        OutlinedButton(
+                            onClick = viewModel::readWithClaude,
+                            enabled = !state.cloudBusy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            if (state.cloudBusy) {
+                                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Spacer(Modifier.width(10.dp))
+                                Text("Reading…")
+                            } else {
+                                Icon(Icons.Default.AutoAwesome, null, Modifier.size(18.dp))
+                                Spacer(Modifier.width(10.dp))
+                                Text("Read the whole hand with Claude")
+                            }
+                        }
                     }
 
                     Button(

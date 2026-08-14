@@ -47,6 +47,7 @@ import pt.up.fe.asma.sueca.engine.Seat
 import pt.up.fe.asma.sueca.engine.TeamId
 import pt.up.fe.asma.sueca.ui.components.AgentSelector
 import pt.up.fe.asma.sueca.ui.components.CardPickerGrid
+import pt.up.fe.asma.sueca.ui.components.CardSlot
 import pt.up.fe.asma.sueca.ui.components.EnginePanel
 import pt.up.fe.asma.sueca.ui.components.HandFan
 import pt.up.fe.asma.sueca.ui.components.MiniCard
@@ -398,16 +399,7 @@ private fun TrickStrip(state: AdvisorUiState) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(Modifier.height(64.dp), contentAlignment = Alignment.Center) {
                         val card = state.table[seat]
-                        if (card != null) {
-                            MiniCard(card, width = 42.dp)
-                        } else {
-                            Box(
-                                Modifier
-                                    .size(width = 42.dp, height = 60.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color.Black.copy(alpha = 0.18f)),
-                            )
-                        }
+                        if (card != null) MiniCard(card, width = 42.dp) else CardSlot(width = 42.dp)
                     }
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -47,6 +47,7 @@ import pt.up.fe.asma.sueca.engine.Advice
 import pt.up.fe.asma.sueca.engine.AgentKind
 import pt.up.fe.asma.sueca.engine.Card
 import pt.up.fe.asma.sueca.engine.MoveEval
+import pt.up.fe.asma.sueca.engine.TOTAL_POINTS
 import pt.up.fe.asma.sueca.engine.TeamId
 import pt.up.fe.asma.sueca.ui.theme.Gold
 import pt.up.fe.asma.sueca.ui.theme.NumberStyle
@@ -145,11 +146,18 @@ fun AgentSelector(
     }
 }
 
-/** Score line for the two teams, with the bar showing who is ahead of the 60 point line. */
+/**
+ * Score line for the two teams, with the bar showing who is ahead of the 60 point line.
+ *
+ * Each team is measured against the 120 points in the deck and grows in from its own end, with
+ * the 60 point line marked in the middle: whoever crosses it has won. Measuring the two against
+ * each other instead made the bar solid green at 21–0, as if the game were already over, and
+ * painted every point nobody had won yet in the other team's colour.
+ */
 @Composable
 fun ScoreBar(sporting: Int, benfica: Int, modifier: Modifier = Modifier) {
-    val total = (sporting + benfica).coerceAtLeast(1)
-    val fraction by animateFloatAsState(sporting.toFloat() / total, label = "score")
+    val sportingShare by animateFloatAsState(sporting / TOTAL_POINTS.toFloat(), label = "sporting")
+    val benficaShare by animateFloatAsState(benfica / TOTAL_POINTS.toFloat(), label = "benfica")
 
     Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -166,13 +174,29 @@ fun ScoreBar(sporting: Int, benfica: Int, modifier: Modifier = Modifier) {
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(CircleShape)
-                .background(TeamId.BENFICA.color().copy(alpha = 0.55f)),
+                .background(Color.White.copy(alpha = 0.10f)),
         ) {
             Box(
                 Modifier
-                    .fillMaxWidth(fraction)
+                    .align(Alignment.CenterStart)
+                    .fillMaxWidth(sportingShare)
                     .height(8.dp)
                     .background(TeamId.SPORTING.color()),
+            )
+            Box(
+                Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxWidth(benficaShare)
+                    .height(8.dp)
+                    .background(TeamId.BENFICA.color()),
+            )
+            // The 60 point line, which is what the two of them are actually racing towards.
+            Box(
+                Modifier
+                    .align(Alignment.Center)
+                    .width(2.dp)
+                    .height(8.dp)
+                    .background(Gold.copy(alpha = 0.75f)),
             )
         }
     }
@@ -413,7 +437,7 @@ fun TrumpBadge(card: Card?, modifier: Modifier = Modifier) {
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
-        SuitGlyph(card.suit, 18.dp, color = if (card.suit.isRed) Negative else Color.White)
+        SuitGlyph(card.suit, 18.dp)
     }
 }
 

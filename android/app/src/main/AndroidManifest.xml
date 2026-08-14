@@ -3,6 +3,13 @@
 
     <!-- The scanner is optional: the app is fully usable by tapping cards in by hand. -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!--
+      Only ever used by the optional cloud card reader, and only when the person has entered
+      their own API key. Everything else in the app — rules, agents, search, on-device
+      recognition — runs with no network at all.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application

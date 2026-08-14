@@ -9,6 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,10 +47,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import pt.up.fe.asma.sueca.data.AppSettings
+import pt.up.fe.asma.sueca.engine.Advice
+import pt.up.fe.asma.sueca.engine.Card
 import pt.up.fe.asma.sueca.engine.TeamId
+import pt.up.fe.asma.sueca.ui.components.signedPoints
+import pt.up.fe.asma.sueca.ui.components.CARD_ASPECT
+import pt.up.fe.asma.sueca.ui.components.CardSlot
 import pt.up.fe.asma.sueca.ui.components.EnginePanel
 import pt.up.fe.asma.sueca.ui.components.HandFan
 import pt.up.fe.asma.sueca.ui.components.HiddenHand
@@ -117,16 +124,20 @@ fun PlayScreen(
                 HintStrip(
                     state = state,
                     onOpenAnalysis = { showAnalysis = true },
-                    onPlayBest = viewModel::playRecommended,
+                    onPlayBest = { viewModel.playRecommended(settings.confirmPlays) },
                 )
             }
 
             HandFan(
                 cards = state.hand,
                 modifier = Modifier.fillMaxWidth(),
-                legal = if (state.yourTurn) state.legal else emptySet(),
+                // Dimming means "you may not play this", not "wait your turn": between your
+                // turns nothing is illegal yet, and fading the whole hand out and back in three
+                // times a trick would only flicker.
+                legal = if (state.yourTurn) state.legal else state.hand.toSet(),
                 recommended = if (settings.showHints) state.advice?.recommended else null,
-                onCardClick = viewModel::playCard,
+                selected = state.pending,
+                onCardClick = { viewModel.requestPlay(it, settings.confirmPlays) },
             )
         }
     }
@@ -147,12 +158,21 @@ fun PlayScreen(
                     advice = state.advice,
                     modifier = Modifier.fillMaxWidth(),
                     onCardClick = { card ->
-                        viewModel.playCard(card)
+                        viewModel.requestPlay(card, settings.confirmPlays)
                         showAnalysis = false
                     },
                 )
             }
         }
+    }
+
+    state.pending?.let { card ->
+        ConfirmPlayDialog(
+            card = card,
+            advice = state.advice,
+            onConfirm = viewModel::confirmPending,
+            onDismiss = viewModel::cancelPending,
+        )
     }
 
     state.result?.let { result ->
@@ -192,6 +212,54 @@ fun PlayScreen(
 
 private fun signed(value: Int) = if (value >= 0) "+$value" else "$value"
 
+/**
+ * The last chance to change your mind.
+ *
+ * A card on the table cannot be taken back, and a fan of ten overlapping cards is easy to
+ * mis-tap, so committing one takes a second, deliberate tap. When the card is not the engine's
+ * pick, the dialog says so rather than quietly letting it go.
+ */
+@Composable
+private fun ConfirmPlayDialog(
+    card: Card,
+    advice: Advice?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val evaluation = advice?.evaluationOf(card)
+    val disagrees = advice != null && advice.recommended != card
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { PlayingCardFace(card, width = 54.dp) },
+        title = { Text("Play ${card.label}?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (evaluation != null && !evaluation.penalised) {
+                    Text(
+                        text = "Expected trick: ${evaluation.expectedPoints.signedPoints()} points.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+                if (disagrees) {
+                    Text(
+                        text = "${advice.agent.displayName} would play ${advice.recommended.label}.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Gold,
+                    )
+                }
+                Text(
+                    text = "Once it is on the table it cannot be taken back.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { Button(onClick = onConfirm) { Text("Play it") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
+}
+
 /** "Fred takes the trick +12", floating over the felt for as long as it is relevant. */
 @Composable
 private fun NoticeBanner(notice: String?, modifier: Modifier = Modifier) {
@@ -213,52 +281,84 @@ private fun NoticeBanner(notice: String?, modifier: Modifier = Modifier) {
     }
 }
 
-/** The four seats around the felt, with whatever each of them has played this trick. */
+/**
+ * The four seats around the felt, with whatever each of them has played this trick.
+ *
+ * Three stacked bands rather than four independently aligned corners. The seats and the trick
+ * used to be placed against the edges of the same box, so on any phone narrower than the sum of
+ * a 210dp diamond and two seat labels — which is every phone — the played cards landed on top of
+ * the labels. Laying them out in the same row instead makes the overlap impossible rather than
+ * unlikely.
+ */
 @Composable
 private fun TableLayout(state: PlayUiState) {
     val seats = state.seats.associateBy { it.spot }
 
-    Box(Modifier.fillMaxSize()) {
-        // Partner, across the table.
-        seats[TableSpot.TOP]?.let { seat ->
-            Column(
-                Modifier.align(Alignment.TopCenter),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        // The trick notice floats over the bottom of this box, so the table keeps a strip clear
+        // for it rather than trusting there to be slack left over.
+        val noticeRoom = 30.dp
+        // The table gets whatever the score bar, the hint strip and your hand leave behind, which
+        // on a small phone is not much. Three rows of cards and the partner's label have to fit
+        // inside it, so the cards are sized from the height rather than fixed and hoped for.
+        val cardWidth = ((maxHeight - 96.dp - noticeRoom) / 3 / CARD_ASPECT).coerceIn(34.dp, 58.dp)
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(bottom = noticeRoom),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Partner, across the table.
+            seats[TableSpot.TOP]?.let { seat ->
                 SeatChip(seat)
                 Spacer(Modifier.height(4.dp))
                 HiddenHand(seat.cardsLeft)
             }
-        }
+            Spacer(Modifier.height(6.dp))
+            PlayedCard(state, TableSpot.TOP, cardWidth)
 
-        seats[TableSpot.LEFT]?.let { seat ->
-            SeatChip(seat, Modifier.align(Alignment.CenterStart))
-        }
+            // The two opponents, either side of the middle of the table. Each label takes a share
+            // of what is left over once the two cards are placed, and truncates inside it.
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                    seats[TableSpot.LEFT]?.let { SeatChip(it) }
+                }
+                PlayedCard(state, TableSpot.LEFT, cardWidth)
+                Spacer(Modifier.weight(0.5f))
+                PlayedCard(state, TableSpot.RIGHT, cardWidth)
+                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                    seats[TableSpot.RIGHT]?.let { SeatChip(it) }
+                }
+            }
 
-        seats[TableSpot.RIGHT]?.let { seat ->
-            SeatChip(seat, Modifier.align(Alignment.CenterEnd))
-        }
-
-        // The trick itself, one card per side of a diamond.
-        Box(Modifier.align(Alignment.Center).size(width = 210.dp, height = 190.dp)) {
-            PlayedCard(state, TableSpot.TOP, Modifier.align(Alignment.TopCenter))
-            PlayedCard(state, TableSpot.LEFT, Modifier.align(Alignment.CenterStart))
-            PlayedCard(state, TableSpot.RIGHT, Modifier.align(Alignment.CenterEnd))
-            PlayedCard(state, TableSpot.BOTTOM, Modifier.align(Alignment.BottomCenter))
+            PlayedCard(state, TableSpot.BOTTOM, cardWidth)
         }
     }
 }
 
 @Composable
-private fun PlayedCard(state: PlayUiState, spot: TableSpot, modifier: Modifier = Modifier) {
+private fun PlayedCard(state: PlayUiState, spot: TableSpot, width: Dp, modifier: Modifier = Modifier) {
     val card = state.table[spot]
-    AnimatedVisibility(
-        visible = card != null,
-        enter = fadeIn() + scaleIn(initialScale = 0.7f),
-        exit = fadeOut(),
-        modifier = modifier,
+    // The slot keeps its size whether or not there is a card in it, so the table does not shuffle
+    // itself about as the trick fills up and empties.
+    Box(
+        modifier.size(width, width * CARD_ASPECT),
+        contentAlignment = Alignment.Center,
     ) {
-        card?.let { PlayingCardFace(card = it, width = 58.dp) }
+        CardSlot(width)
+        AnimatedVisibility(
+            visible = card != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.7f),
+            exit = fadeOut(),
+        ) {
+            card?.let { PlayingCardFace(card = it, width = width) }
+        }
     }
 }
 
@@ -283,16 +383,22 @@ private fun SeatChip(seat: SeatView, modifier: Modifier = Modifier) {
                 .clip(CircleShape)
                 .background(seat.team.color()),
         )
+        // A seat at the edge of the table has room for a name and little else, so the agent goes
+        // in by its short name and both lines cut off rather than push the chip over a card.
         Column {
             Text(
                 text = seat.name,
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = if (seat.isHuman) "${seat.cardsLeft} cards" else "${seat.agent.displayName} · ${seat.cardsLeft}",
+                text = if (seat.isHuman) "${seat.cardsLeft} cards" else "${seat.agent.shortName} · ${seat.cardsLeft}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

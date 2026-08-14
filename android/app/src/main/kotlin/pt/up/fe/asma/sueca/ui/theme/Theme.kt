@@ -32,15 +32,30 @@ val FeltEdge = Color(0xFF1D5D46)
 val Gold = Color(0xFFE8C468)
 val GoldMuted = Color(0xFF9C853F)
 
-/** Card stock. */
+/**
+ * Card stock.
+ *
+ * [CardEdge] is dark enough to read as a printed edge against [CardFace], because in a fan the
+ * only thing separating one card from the card half underneath it is that line.
+ */
 val CardFace = Color(0xFFFAF7F0)
 val CardFaceShade = Color(0xFFEDE7D9)
-val CardEdge = Color(0xFFCFC7B4)
+val CardEdge = Color(0xFFAA9F86)
 val CardBackInk = Color(0xFF0E3A2C)
 
 val Ink = Color(0xFF122019)
 val SuitRed = Color(0xFFC42B2B)
 val SuitBlack = Color(0xFF17231D)
+
+/**
+ * The suits again, for everywhere that is not a card face.
+ *
+ * [SuitRed] and [SuitBlack] are inks: they are mixed for cream card stock, and on the felt the
+ * black one is all but invisible — a learned spade in the deck trainer came out darker than the
+ * unlearned placeholder next to it.
+ */
+val SuitRedOnDark = Color(0xFFF07A72)
+val SuitBlackOnDark = Color(0xFFE7EFE9)
 
 val SportingGreen = Color(0xFF32B36A)
 val BenficaRed = Color(0xFFE23B4E)
@@ -48,7 +63,10 @@ val BenficaRed = Color(0xFFE23B4E)
 val Positive = Color(0xFF4ED08A)
 val Negative = Color(0xFFF06A72)
 
+/** Suit colour on card stock. Off a card face, use [colorOnDark]. */
 fun Suit.color(): Color = if (isRed) SuitRed else SuitBlack
+
+fun Suit.colorOnDark(): Color = if (isRed) SuitRedOnDark else SuitBlackOnDark
 
 fun TeamId.color(): Color = if (this == TeamId.SPORTING) SportingGreen else BenficaRed
 

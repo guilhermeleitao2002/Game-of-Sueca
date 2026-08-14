@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Groups
-import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.School
@@ -71,12 +70,6 @@ fun HomeScreen(settings: AppSettings, onNavigate: (String) -> Unit) {
             icon = Icons.Default.PlayArrow,
         ),
         Destination(
-            route = Routes.SCAN,
-            title = "Scan cards",
-            description = "Point the camera at a card and watch it get read, rank and suit.",
-            icon = Icons.Default.PhotoCamera,
-        ),
-        Destination(
             route = Routes.TRAIN_DECK,
             title = "Train your deck",
             description = "Reading your cards badly? Show it a few and it will learn how your " +
@@ -114,8 +107,9 @@ fun HomeScreen(settings: AppSettings, onNavigate: (String) -> Unit) {
             }
             item {
                 Text(
-                    text = "Sueca engine and agents ported from the ASMA simulator. " +
-                        "Everything runs on the phone: no account, no network.",
+                    text = "Sueca engine and agents ported from the ASMA simulator. Everything " +
+                        "runs on the phone: no account, and no network unless you turn on the " +
+                        "cloud card reader yourself.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),

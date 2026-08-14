@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -52,6 +53,7 @@ import pt.up.fe.asma.sueca.ui.theme.Felt
 import pt.up.fe.asma.sueca.ui.theme.FeltLight
 import pt.up.fe.asma.sueca.ui.theme.Gold
 import pt.up.fe.asma.sueca.ui.theme.color
+import pt.up.fe.asma.sueca.ui.theme.colorOnDark
 import kotlin.math.abs
 
 /** Cards are drawn, never bitmapped: the outlines come straight out of the shared shape module. */
@@ -90,9 +92,13 @@ fun DrawScope.drawSuit(suit: Suit, topLeft: Offset, size: Size, color: Color, fl
     }
 }
 
-/** A suit symbol on its own, for chips, legends and the trump badge. */
+/**
+ * A suit symbol on its own, for chips, legends and the trump badge.
+ *
+ * Every one of those sits on the felt rather than on a card, hence [colorOnDark] by default.
+ */
 @Composable
-fun SuitGlyph(suit: Suit, size: Dp, modifier: Modifier = Modifier, color: Color = suit.color()) {
+fun SuitGlyph(suit: Suit, size: Dp, modifier: Modifier = Modifier, color: Color = suit.colorOnDark()) {
     Canvas(modifier.size(size)) {
         drawSuit(suit, Offset.Zero, Size(this.size.width, this.size.height), color)
     }
@@ -145,11 +151,20 @@ fun PlayingCardFace(
     val density = LocalDensity.current
 
     val glow by animateFloatAsState(if (highlighted) 1f else 0f, label = "cardGlow")
+    // A card that is not raised in the first place does not get raised further for being the
+    // engine's pick; in a fan the gold rim and the lift say that already.
+    val raise = if (elevation > 0.dp && highlighted) elevation + 6.dp else elevation
 
     Box(
         modifier = modifier
             .size(width, height)
-            .shadow(if (highlighted) elevation + 6.dp else elevation, shape, clip = false)
+            // Card stock is opaque, and this is the whole of what keeps it that way: a plain
+            // clip, a plain opaque fill, nothing exotic in between. It used to ask for a shadow
+            // with `clip = false`, which was the one structural difference between this and
+            // CardBack — the one card that never came out see-through.
+            // Enough to read as unavailable, not so much that it stops reading as a card.
+            .then(if (dimmed) Modifier.alpha(0.55f) else Modifier)
+            .then(if (raise > 0.dp) Modifier.shadow(raise, shape) else Modifier)
             .clip(shape)
             .background(Brush.verticalGradient(listOf(CardFace, CardFaceShade)))
             .border(
@@ -157,7 +172,6 @@ fun PlayingCardFace(
                 color = androidx.compose.ui.graphics.lerp(CardEdge, Gold, glow),
                 shape = shape,
             )
-            .alpha(if (dimmed) 0.42f else 1f)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
     ) {
         // Middle of the card: pips for the numbers, a panel for the court cards.
@@ -382,6 +396,10 @@ fun HandFan(
                     width = cardWidth,
                     highlighted = isRecommended,
                     dimmed = !isLegal,
+                    // Flat, unlike a card on the table. Ten cards overlapping by half means ten
+                    // shadows falling across the cards behind them, which stack into a grey
+                    // smear down the hand; the printed edge does the separating instead.
+                    elevation = 0.dp,
                     onClick = { onCardClick(card) },
                 )
             }
@@ -413,13 +431,24 @@ fun MiniCard(
 /** Fanned card backs, for the three hands you cannot see. */
 @Composable
 fun HiddenHand(count: Int, modifier: Modifier = Modifier, cardWidth: Dp = 22.dp) {
-    Box(modifier.height(cardWidth * CARD_ASPECT)) {
-        repeat(count.coerceAtMost(10)) { index ->
+    val shown = count.coerceIn(0, 10)
+    if (shown == 0) return
+
+    // Declared, not inferred: Modifier.offset moves a card without widening its parent, so the
+    // box measured a single card wide while the fan spilled out to the right of it — enough to
+    // leave the partner's hand visibly off-centre under their label.
+    val spread = cardWidth * 0.42f
+    Box(
+        modifier
+            .width(cardWidth + spread * (shown - 1))
+            .height(cardWidth * CARD_ASPECT),
+    ) {
+        repeat(shown) { index ->
             CardBack(
                 width = cardWidth,
                 modifier = Modifier
-                    .offset(x = (cardWidth * 0.42f) * index)
-                    .rotate((index - count / 2f) * 1.2f),
+                    .offset(x = spread * index)
+                    .rotate((index - shown / 2f) * 1.2f),
                 elevation = 2.dp,
             )
         }

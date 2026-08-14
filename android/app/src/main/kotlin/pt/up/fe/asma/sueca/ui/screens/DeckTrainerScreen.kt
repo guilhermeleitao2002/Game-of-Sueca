@@ -60,7 +60,7 @@ import pt.up.fe.asma.sueca.ui.components.SectionLabel
 import pt.up.fe.asma.sueca.ui.components.SuitGlyph
 import pt.up.fe.asma.sueca.ui.theme.Gold
 import pt.up.fe.asma.sueca.ui.theme.Positive
-import pt.up.fe.asma.sueca.ui.theme.color
+import pt.up.fe.asma.sueca.ui.theme.colorOnDark
 import pt.up.fe.asma.sueca.vision.ScanFrame
 import kotlin.math.max
 
@@ -252,7 +252,7 @@ private fun CoverageRow(state: DeckTrainerUiState, onForget: (Suit) -> Unit) {
                         SuitGlyph(
                             suit = suit,
                             size = 20.dp,
-                            color = if (learned > 0) suit.color() else Color.White.copy(alpha = 0.25f),
+                            color = if (learned > 0) suit.colorOnDark() else Color.White.copy(alpha = 0.25f),
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(

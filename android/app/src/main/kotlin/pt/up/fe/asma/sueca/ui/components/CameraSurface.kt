@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import pt.up.fe.asma.sueca.ui.theme.Gold
+import pt.up.fe.asma.sueca.vision.CameraCapture
 import pt.up.fe.asma.sueca.vision.CardScanner
 
 /**
@@ -51,6 +52,7 @@ import pt.up.fe.asma.sueca.vision.CardScanner
 fun CameraSurface(
     scanner: CardScanner,
     modifier: Modifier = Modifier,
+    capture: CameraCapture? = null,
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -67,7 +69,7 @@ fun CameraSurface(
 
     Box(modifier) {
         if (granted) {
-            CameraPreview(scanner, Modifier.fillMaxSize())
+            CameraPreview(scanner, capture, Modifier.fillMaxSize())
             overlay()
         } else {
             PermissionPrompt { request.launch(Manifest.permission.CAMERA) }
@@ -99,7 +101,7 @@ private fun PermissionPrompt(onRequest: () -> Unit) {
 
 /** CameraX preview with the card scanner wired into the analysis stream. */
 @Composable
-private fun CameraPreview(scanner: CardScanner, modifier: Modifier = Modifier) {
+private fun CameraPreview(scanner: CardScanner, capture: CameraCapture?, modifier: Modifier = Modifier) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val bound = remember { mutableStateOf<ProcessCameraProvider?>(null) }
 
@@ -143,9 +145,10 @@ private fun CameraPreview(scanner: CardScanner, modifier: Modifier = Modifier) {
                     .build()
                     .also { it.setAnalyzer(scanner.executor, scanner) }
 
+                val useCases = listOfNotNull(preview, analysis, capture?.useCase).toTypedArray()
                 runCatching {
                     provider.unbindAll()
-                    provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+                    provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, *useCases)
                 }
             }, ContextCompat.getMainExecutor(viewContext))
 

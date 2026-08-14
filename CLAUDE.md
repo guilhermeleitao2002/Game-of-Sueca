@@ -68,6 +68,8 @@ Two Gradle modules: `:engine` (pure Kotlin/JVM — rules, agents, beliefs, searc
 
 **Decks are learnable, and the learning is supervised, not RL.** A `DeckProfile` stores pip masks cut out of the user's own cards, a token→rank map for that deck's index font, and its ink colour statistics; `SuitClassifier`/`RankReader`/`PipFinder` all take one optionally and fall back to the built-in shapes without it. Every confirmation on the trainer screen is a labelled example, so nearest neighbour over prototypes is the right tool — one card per suit already shifts behaviour. Profiles serialise to a line-based text format (`DeckProfile.encode`) under `filesDir/deck-profiles/`.
 
+**The cloud reader is opt-in and bring-your-own-key.** `ClaudeCardReader` (app module, Anthropic Java SDK + core library desugaring) sends one downscaled still to `claude-opus-5` with a JSON-schema `output_config.format`, and only ever runs when `AppSettings.claudeApiKey` is set. No key ships in the APK — it is published publicly, so a bundled key would be extractable and billed to whoever owned it. The on-device pipeline stays the default; `INTERNET` is used for nothing else.
+
 **Content colour is set explicitly in `SuecaTheme`.** Material3 defaults `LocalContentColor` to black and only leaves it when a container's colour matches a scheme role, which the transparent scaffolds over the felt gradient never do. Without the override every `Text` that does not name a colour renders black on dark green.
 
 ## Known quirks

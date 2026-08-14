@@ -48,6 +48,8 @@ data class PlayUiState(
     val yourTurn: Boolean = false,
     val notice: String? = null,
     val result: GameResult? = null,
+    /** Card the person tapped and has not confirmed yet. A played card cannot be taken back. */
+    val pending: Card? = null,
 )
 
 /**
@@ -108,6 +110,24 @@ class PlayViewModel : ViewModel() {
         }
     }
 
+    /**
+     * The person tapped a card. With [confirm] on, it is only proposed — [confirmPending] plays
+     * it. Cards cannot be taken back once they are on the table, so the tap that commits one
+     * should be deliberate.
+     */
+    fun requestPlay(card: Card, confirm: Boolean) {
+        if (!_state.value.yourTurn) return
+        if (confirm) _state.update { it.copy(pending = card) } else playCard(card)
+    }
+
+    fun confirmPending() {
+        val card = _state.value.pending ?: return
+        _state.update { it.copy(pending = null) }
+        playCard(card)
+    }
+
+    fun cancelPending() = _state.update { it.copy(pending = null) }
+
     /** The person tapped a card in their hand. */
     fun playCard(card: Card) {
         if (!_state.value.yourTurn) return
@@ -132,8 +152,8 @@ class PlayViewModel : ViewModel() {
         }
     }
 
-    fun playRecommended() {
-        _state.value.advice?.let { playCard(it.recommended) }
+    fun playRecommended(confirm: Boolean) {
+        _state.value.advice?.let { requestPlay(it.recommended, confirm) }
     }
 
     fun dismissNotice() = _state.update { it.copy(notice = null) }
